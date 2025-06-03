@@ -3,363 +3,504 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador de E-mails Veeam</title>
+    <title>Monitoramento Veeam</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.1"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.2.0"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-blue-800">Visualizador de E-mails Veeam</h1>
-            <p class="text-gray-600">Visualize os dados extraídos dos e-mails de backup</p>
+<body class="bg-gray-100 font-sans">
+    <div class="min-h-screen">
+        <!-- Cabeçalho -->
+        <header class="bg-blue-600 text-white shadow-lg">
+            <div class="container mx-auto px-4 py-6">
+                <div class="flex justify-between items-center">
+                    <h1 class="text-2xl font-bold">
+                        <i class="fas fa-envelope mr-2"></i>Monitoramento Veeam
+                    </h1>
+                    <div class="flex items-center space-x-4">
+                        <div id="current-date" class="text-sm bg-blue-700 px-3 py-1 rounded-full"></div>
+                        <button id="refresh-btn" class="bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded-full">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </header>
 
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <div class="flex flex-col md:flex-row gap-4 mb-6">
-                <div class="relative flex-grow">
-                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                        <i class="fas fa-calendar text-gray-400"></i>
+        <!-- Conteúdo Principal -->
+        <main class="container mx-auto px-4 py-6">
+            <!-- Filtros -->
+            <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+                <div class="flex flex-wrap items-end gap-4">
+                    <div class="flex-1 min-w-[200px]">
+                        <label for="date-filter" class="block text-sm font-medium text-gray-700 mb-1">Filtrar por Data</label>
+                        <input type="date" id="date-filter" class="w-full p-2 border border-gray-300 rounded-md">
                     </div>
-                    <input 
-                        type="date" 
-                        id="datePicker" 
-                        class="pl-10 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-                    >
-                </div>
-                <button 
-                    id="fetchByDateBtn" 
-                    class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                    Buscar por Data
-                </button>
-                <button 
-                    id="fetchLatestBtn" 
-                    class="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                >
-                    <i class="fas fa-sync-alt mr-2"></i>Mais Recente
-                </button>
-            </div>
-
-            <div id="loading" class="hidden text-center py-4">
-                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                <p class="mt-2 text-gray-600">Carregando dados...</p>
-            </div>
-
-            <div id="errorAlert" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
-                <p id="errorMessage"></p>
-            </div>
-        </div>
-
-        <div id="resultsContainer" class="hidden">
-            <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-                <h2 class="text-xl font-semibold mb-4 text-gray-800">Resumo do E-mail</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div class="bg-blue-50 p-4 rounded-lg">
-                        <p class="text-sm text-blue-600">ID do E-mail</p>
-                        <p id="emailId" class="text-2xl font-bold text-blue-800">-</p>
+                    <div>
+                        <button id="apply-filter" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+                            Aplicar Filtro
+                        </button>
                     </div>
-                    <div class="bg-green-50 p-4 rounded-lg">
-                        <p class="text-sm text-green-600">Total de Hosts</p>
-                        <p id="totalHosts" class="text-2xl font-bold text-green-800">-</p>
-                    </div>
-                    <div class="bg-purple-50 p-4 rounded-lg">
-                        <p class="text-sm text-purple-600">Data do E-mail</p>
-                        <p id="emailDate" class="text-2xl font-bold text-purple-800">-</p>
+                    <div>
+                        <button id="clear-filter" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md">
+                            Limpar
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-                <h2 class="text-xl font-semibold mb-4 text-gray-800">Dados dos Hosts</h2>
+            <!-- Estatísticas -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div class="bg-white rounded-lg shadow-md p-4">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Total de E-mails</h3>
+                    <div class="flex items-center justify-between">
+                        <span id="total-emails" class="text-3xl font-bold text-blue-600">0</span>
+                        <i class="fas fa-envelope text-blue-400 text-4xl"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-md p-4">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Processados</h3>
+                    <div class="flex items-center justify-between">
+                        <span id="processed-emails" class="text-3xl font-bold text-green-600">0</span>
+                        <i class="fas fa-check-circle text-green-400 text-4xl"></i>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow-md p-4">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Pendentes</h3>
+                    <div class="flex items-center justify-between">
+                        <span id="pending-emails" class="text-3xl font-bold text-yellow-600">0</span>
+                        <i class="fas fa-clock text-yellow-400 text-4xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráfico -->
+            <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Status dos E-mails (Últimos 7 dias)</h2>
+                <div class="h-64">
+                    <canvas id="status-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Lista de E-mails -->
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-800">E-mails Recentes</h2>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Host</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assunto</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data/Hora</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
                         </thead>
-                        <tbody id="emailDataBody" class="bg-white divide-y divide-gray-200">
-                            <!-- Dados serão inseridos aqui via JavaScript -->
+                        <tbody id="emails-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Dados serão inseridos via JavaScript -->
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div class="bg-white rounded-lg shadow-md p-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Distribuição de Status</h2>
-                    <canvas id="statusChart" height="300"></canvas>
+                <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                    <div class="text-sm text-gray-500">
+                        Mostrando <span id="showing-count">0</span> de <span id="total-count">0</span> e-mails
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="prev-page" class="px-3 py-1 bg-gray-200 rounded-md disabled:opacity-50" disabled>Anterior</button>
+                        <button id="next-page" class="px-3 py-1 bg-gray-200 rounded-md disabled:opacity-50" disabled>Próxima</button>
+                    </div>
                 </div>
-                <div class="bg-white rounded-lg shadow-md p-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Atividade por Data</h2>
-                    <canvas id="dateChart" height="300"></canvas>
+            </div>
+        </main>
+
+        <!-- Modal de Detalhes -->
+        <div id="email-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-xl font-semibold text-gray-800">Detalhes do E-mail</h3>
+                    <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div id="email-detail-content">
+                        <!-- Conteúdo será inserido via JavaScript -->
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const { DateTime } = luxon;
-            
-            const fetchByDateBtn = document.getElementById('fetchByDateBtn');
-            const fetchLatestBtn = document.getElementById('fetchLatestBtn');
-            const datePicker = document.getElementById('datePicker');
-            const loading = document.getElementById('loading');
-            const errorAlert = document.getElementById('errorAlert');
-            const errorMessage = document.getElementById('errorMessage');
-            const resultsContainer = document.getElementById('resultsContainer');
-            
-            let statusChart = null;
-            let dateChart = null;
+        // Variáveis globais
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let allEmails = [];
+        let filteredEmails = [];
+        let statusChart = null;
 
-            // Configurar a data atual como padrão no datepicker
-            datePicker.valueAsDate = new Date();
+        // Elementos DOM
+        const emailsTableBody = document.getElementById('emails-table-body');
+        const totalEmailsSpan = document.getElementById('total-emails');
+        const processedEmailsSpan = document.getElementById('processed-emails');
+        const pendingEmailsSpan = document.getElementById('pending-emails');
+        const showingCountSpan = document.getElementById('showing-count');
+        const totalCountSpan = document.getElementById('total-count');
+        const prevPageBtn = document.getElementById('prev-page');
+        const nextPageBtn = document.getElementById('next-page');
+        const dateFilterInput = document.getElementById('date-filter');
+        const applyFilterBtn = document.getElementById('apply-filter');
+        const clearFilterBtn = document.getElementById('clear-filter');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const currentDateSpan = document.getElementById('current-date');
+        const emailDetailModal = document.getElementById('email-detail-modal');
+        const closeModalBtn = document.getElementById('close-modal');
+        const emailDetailContent = document.getElementById('email-detail-content');
+        const statusChartCanvas = document.getElementById('status-chart');
 
-            // Buscar o e-mail mais recente ao carregar a página
-            fetchLatestEmail();
+        // Funções
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR').slice(0, 5);
+        }
 
-            fetchByDateBtn.addEventListener('click', fetchEmailByDate);
-            fetchLatestBtn.addEventListener('click', fetchLatestEmail);
+        function formatSimpleDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('pt-BR');
+        }
 
-            function fetchLatestEmail() {
-                loading.classList.remove('hidden');
-                errorAlert.classList.add('hidden');
-                resultsContainer.classList.add('hidden');
-                
-                fetch('/api/emails/latest')
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`Erro na requisição: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        displayEmailData(data);
-                        // Atualizar o datepicker com a data do e-mail
-                        if (data.data && data.data.length > 0) {
-                            const emailDate = new Date(data.data[0].date);
-                            datePicker.valueAsDate = emailDate;
-                        }
-                        loading.classList.add('hidden');
-                        resultsContainer.classList.remove('hidden');
-                    })
-                    .catch(error => {
-                        console.error('Erro ao buscar dados:', error);
-                        showError(error.message || 'Erro ao buscar o e-mail mais recente.');
-                        loading.classList.add('hidden');
-                    });
+        function getStatusBadge(isProcessed) {
+            if (isProcessed) {
+                return '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Processado</span>';
+            } else {
+                return '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Pendente</span>';
             }
+        }
 
-            function fetchEmailByDate() {
-                const selectedDate = datePicker.value;
+        async function fetchEmails() {
+            try {
+                const response = await fetch('/api/emails/');
+                if (!response.ok) throw new Error('Erro ao carregar e-mails');
+                allEmails = await response.json();
+                filteredEmails = [...allEmails];
+                updateDashboard();
+                renderEmailsTable();
+                updateChart();
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro ao carregar dados. Tente novamente.');
+            }
+        }
+
+        async function fetchEmailDetails(emailId) {
+            try {
+                const response = await fetch(`/api/email-data/by-email/${emailId}`);
+                if (!response.ok) throw new Error('Erro ao carregar detalhes');
+                return await response.json();
+            } catch (error) {
+                console.error('Erro:', error);
+                return [];
+            }
+        }
+
+        function renderEmailsTable() {
+            emailsTableBody.innerHTML = '';
+            
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const emailsToShow = filteredEmails.slice(startIndex, endIndex);
+            
+            if (emailsToShow.length === 0) {
+                emailsTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">Nenhum e-mail encontrado</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            emailsToShow.forEach(email => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${email.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${email.subject || 'Sem assunto'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(email.date + 'T' + email.sent_time)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${getStatusBadge(email.is_processed)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="showEmailDetail(${email.id})" class="text-blue-600 hover:text-blue-800 mr-3">
+                            <i class="fas fa-eye"></i> Detalhes
+                        </button>
+                    </td>
+                `;
+                emailsTableBody.appendChild(row);
+            });
+            
+            updatePagination();
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredEmails.length / itemsPerPage);
+            
+            showingCountSpan.textContent = Math.min(
+                currentPage * itemsPerPage, 
+                filteredEmails.length
+            );
+            totalCountSpan.textContent = filteredEmails.length;
+            
+            prevPageBtn.disabled = currentPage === 1;
+            nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
+        }
+
+        function updateDashboard() {
+            totalEmailsSpan.textContent = allEmails.length;
+            
+            const processed = allEmails.filter(email => email.is_processed).length;
+            processedEmailsSpan.textContent = processed;
+            
+            const pending = allEmails.length - processed;
+            pendingEmailsSpan.textContent = pending;
+        }
+
+        async function showEmailDetail(emailId) {
+            try {
+                // Mostrar loading
+                emailDetailContent.innerHTML = `
+                    <div class="flex justify-center items-center h-32">
+                        <i class="fas fa-spinner fa-spin text-3xl text-blue-500"></i>
+                    </div>
+                `;
                 
-                if (!selectedDate) {
-                    showError('Por favor, selecione uma data válida.');
-                    return;
+                // Abrir modal
+                emailDetailModal.classList.remove('hidden');
+                
+                // Buscar detalhes do e-mail e seus dados
+                const [emailResponse, dataResponse] = await Promise.all([
+                    fetch(`/api/emails/${emailId}`),
+                    fetchEmailDetails(emailId)
+                ]);
+                
+                if (!emailResponse.ok) throw new Error('Erro ao carregar e-mail');
+                const email = await emailResponse.json();
+                
+                // Renderizar conteúdo
+                emailDetailContent.innerHTML = `
+                    <div class="mb-6">
+                        <h4 class="text-lg font-semibold mb-2">Informações do E-mail</h4>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm text-gray-500">ID</p>
+                                    <p class="font-medium">${email.id}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Assunto</p>
+                                    <p class="font-medium">${email.subject || 'Sem assunto'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Data/Hora</p>
+                                    <p class="font-medium">${formatDate(email.date + 'T' + email.sent_time)}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Status</p>
+                                    <p class="font-medium">${email.is_processed ? 'Processado' : 'Pendente'}</p>
+                                </div>
+                                ${email.processed_date ? `
+                                <div>
+                                    <p class="text-sm text-gray-500">Processado em</p>
+                                    <p class="font-medium">${formatDate(email.processed_date)}</p>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-semibold mb-2">Dados do Backup</h4>
+                        ${dataResponse.length > 0 ? `
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Host</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${dataResponse.map(item => `
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.host}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.ip || 'N/A'}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <span class="px-2 py-1 text-xs rounded-full ${
+                                                item.status === 'Success' ? 'bg-green-100 text-green-800' :
+                                                item.status === 'Warning' ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-red-100 text-red-800'
+                                            }">
+                                                ${item.status}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatSimpleDate(item.date)}</td>
+                                    </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        ` : `
+                        <div class="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
+                            Nenhum dado de backup encontrado para este e-mail
+                        </div>
+                        `}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Erro:', error);
+                emailDetailContent.innerHTML = `
+                    <div class="bg-red-50 border-l-4 border-red-400 p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle text-red-400"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm text-red-700">
+                                    Erro ao carregar detalhes do e-mail. Tente novamente.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function updateChart() {
+            // Agrupar e-mails por data e status (últimos 7 dias)
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            
+            const filtered = allEmails.filter(email => {
+                const emailDate = new Date(email.date);
+                return emailDate >= sevenDaysAgo;
+            });
+            
+            const groupedByDate = filtered.reduce((acc, email) => {
+                const date = formatSimpleDate(email.date);
+                if (!acc[date]) {
+                    acc[date] = { processed: 0, pending: 0 };
                 }
-
-                loading.classList.remove('hidden');
-                errorAlert.classList.add('hidden');
-                resultsContainer.classList.add('hidden');
-                
-                fetch(`/api/emails/by-date?date=${selectedDate}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`Erro na requisição: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.email_id) {
-                            displayEmailData(data);
-                        } else {
-                            showError('Nenhum e-mail encontrado para esta data.');
-                        }
-                        loading.classList.add('hidden');
-                        resultsContainer.classList.remove('hidden');
-                    })
-                    .catch(error => {
-                        console.error('Erro ao buscar dados:', error);
-                        showError(error.message || 'Erro ao buscar e-mail pela data.');
-                        loading.classList.add('hidden');
-                    });
-            }
-
-            function displayEmailData(data) {
-                console.log('Dados recebidos:', data); // Para debug
-                
-                // Atualizar resumo
-                document.getElementById('emailId').textContent = data.email_id;
-                document.getElementById('totalHosts').textContent = data.count;
-                
-                // Encontrar a data do e-mail (usamos a primeira data encontrada)
-                if (data.data && data.data.length > 0) {
-                    const emailDate = DateTime.fromISO(data.data[0].date, { zone: 'America/Sao_Paulo' });
-                    document.getElementById('emailDate').textContent = emailDate.toLocaleString(DateTime.DATETIME_SHORT);
+                if (email.is_processed) {
+                    acc[date].processed++;
                 } else {
-                    document.getElementById('emailDate').textContent = 'N/A';
+                    acc[date].pending++;
                 }
-
-                // Preencher tabela
-                const tbody = document.getElementById('emailDataBody');
-                tbody.innerHTML = '';
-                
-                data.data.forEach(item => {
-                    const row = document.createElement('tr');
-                    
-                    // Determinar classe de cor com base no status
-                    let statusClass = '';
-                    if (item.status && item.status.toLowerCase().includes('success')) {
-                        statusClass = 'text-green-600 font-semibold';
-                    } else if (item.status && item.status.toLowerCase().includes('fail')) {
-                        statusClass = 'text-red-600 font-semibold';
-                    } else if (item.status && item.status.toLowerCase().includes('warning')) {
-                        statusClass = 'text-yellow-600 font-semibold';
-                    }
-                    
-                    // Formatar data com Luxon
-                    const itemDate = item.date ? 
-                        DateTime.fromISO(item.date, { zone: 'America/Sao_Paulo' }).toLocaleString(DateTime.DATETIME_SHORT) : 
-                        'N/A';
-                    
-                    row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap">${item.host || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">${item.ip || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap ${statusClass}">${item.status || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">${itemDate}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-
-                // Atualizar gráficos
-                updateCharts(data.data);
+                return acc;
+            }, {});
+            
+            const labels = Object.keys(groupedByDate).sort();
+            const processedData = labels.map(date => groupedByDate[date].processed);
+            const pendingData = labels.map(date => groupedByDate[date].pending);
+            
+            if (statusChart) {
+                statusChart.destroy();
             }
-
-            function updateCharts(emailData) {
-                // Dados para o gráfico de status
-                const statusCounts = {};
-                emailData.forEach(item => {
-                    const status = item.status || 'Desconhecido';
-                    statusCounts[status] = (statusCounts[status] || 0) + 1;
-                });
-
-                // Dados para o gráfico de datas (agrupar por hora)
-                const timeCounts = {};
-                emailData.forEach(item => {
-                    if (item.date) {
-                        const dt = DateTime.fromISO(item.date, { zone: 'America/Sao_Paulo' });
-                        const roundedHour = dt.startOf('hour');
-                        const hourKey = roundedHour.toISO();
-                        
-                        timeCounts[hourKey] = (timeCounts[hourKey] || 0) + 1;
-                    }
-                });
-
-                // Ordenar as horas
-                const sortedTimes = Object.keys(timeCounts).sort();
-                const timeLabels = sortedTimes.map(time => {
-                    return DateTime.fromISO(time, { zone: 'America/Sao_Paulo' }).toLocaleString({ 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: false
-                    });
-                });
-                const timeValues = sortedTimes.map(time => timeCounts[time]);
-
-                // Destruir gráficos existentes
-                if (statusChart) {
-                    statusChart.destroy();
-                }
-                if (dateChart) {
-                    dateChart.destroy();
-                }
-
-                // Gráfico de status (pie chart)
-                const statusCtx = document.getElementById('statusChart').getContext('2d');
-                statusChart = new Chart(statusCtx, {
-                    type: 'pie',
-                    data: {
-                        labels: Object.keys(statusCounts),
-                        datasets: [{
-                            data: Object.values(statusCounts),
-                            backgroundColor: [
-                                '#10B981', // verde
-                                '#EF4444', // vermelho
-                                '#F59E0B', // amarelo
-                                '#3B82F6', // azul
-                                '#8B5CF6', // violeta
-                                '#EC4899'  // rosa
-                            ],
+            
+            statusChart = new Chart(statusChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Processados',
+                            data: processedData,
+                            backgroundColor: '#10B981',
+                            borderColor: '#10B981',
                             borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const label = context.label || '';
-                                        const value = context.raw || 0;
-                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                        const percentage = Math.round((value / total) * 100);
-                                        return `${label}: ${value} (${percentage}%)`;
-                                    }
-                                }
+                        },
+                        {
+                            label: 'Pendentes',
+                            data: pendingData,
+                            backgroundColor: '#F59E0B',
+                            borderColor: '#F59E0B',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
                             }
                         }
                     }
-                });
+                }
+            });
+        }
 
-                // Gráfico de datas (bar chart)
-                const dateCtx = document.getElementById('dateChart').getContext('2d');
-                dateChart = new Chart(dateCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: timeLabels,
-                        datasets: [{
-                            label: 'Hosts por hora',
-                            data: timeValues,
-                            backgroundColor: '#3B82F6',
-                            borderColor: '#2563EB',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    stepSize: 1
-                                }
-                            },
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Hora do dia'
-                                }
-                            }
-                        }
-                    }
-                });
+        function filterByDate(date) {
+            if (!date) {
+                filteredEmails = [...allEmails];
+            } else {
+                filteredEmails = allEmails.filter(email => email.date === date);
             }
+            currentPage = 1;
+            renderEmailsTable();
+        }
 
-            function showError(message) {
-                errorMessage.textContent = message;
-                errorAlert.classList.remove('hidden');
+        // Event Listeners
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderEmailsTable();
             }
         });
+
+        nextPageBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredEmails.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderEmailsTable();
+            }
+        });
+
+        applyFilterBtn.addEventListener('click', () => {
+            filterByDate(dateFilterInput.value);
+        });
+
+        clearFilterBtn.addEventListener('click', () => {
+            dateFilterInput.value = '';
+            filterByDate(null);
+        });
+
+        refreshBtn.addEventListener('click', () => {
+            fetchEmails();
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            emailDetailModal.classList.add('hidden');
+        });
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            // Atualizar data atual
+            const today = new Date();
+            currentDateSpan.textContent = today.toLocaleDateString('pt-BR');
+            
+            // Definir data máxima no filtro como hoje
+            dateFilterInput.max = today.toISOString().split('T')[0];
+            
+            // Carregar dados
+            fetchEmails();
+        });
+
+        // Funções globais para acesso no HTML
+        window.showEmailDetail = showEmailDetail;
     </script>
 </body>
 </html>

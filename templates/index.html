@@ -295,29 +295,16 @@
 
         // Função para atualizar o resumo dos backups
         function updateBackupSummary() {
-            // Agrupa todos os dados de backup_jobs dos e-mails filtrados
-            let allBackupJobs = [];
-            filteredEmails.forEach(email => {
-                if (email.backup_jobs && Array.isArray(email.backup_jobs) && email.backup_jobs.length > 0) {
-                    allBackupJobs = allBackupJobs.concat(email.backup_jobs);
-                }
-            });
-
-            // Se não houver dados, tenta buscar de todos os e-mails
-            if (allBackupJobs.length === 0 && allEmails.length > 0) {
-                allEmails.forEach(email => {
-                    if (email.backup_jobs && Array.isArray(email.backup_jobs) && email.backup_jobs.length > 0) {
-                        allBackupJobs = allBackupJobs.concat(email.backup_jobs);
-                    }
-                });
-            }
-
-            // Contadores por status
+            // Contadores por status baseados na tabela emails (não nos jobs)
             let success = 0, warning = 0, error = 0;
-            allBackupJobs.forEach(item => {
-                if (item.status === 'Success') success++;
-                else if (item.status === 'Warning') warning++;
-                else error++;
+            filteredEmails.forEach(email => {
+                if (email.is_processed === 1 || email.is_processed === true) {
+                    success++;
+                } else if (email.is_processed === 0 || email.is_processed === false) {
+                    warning++;
+                } else {
+                    error++;
+                }
             });
 
             summarySuccess.textContent = success;
@@ -329,16 +316,18 @@
             if (success + warning + error === 0) {
                 infoText = 'Nenhum dado de backup encontrado para os dispositivos no período selecionado.';
             } else if (error > 0) {
-                infoText = `Atenção: ${error} dispositivo(s) apresentaram erro(s) no backup.`;
+                infoText = `Atenção: ${error} e-mail(s) com status desconhecido.`;
             } else if (warning > 0) {
-                infoText = `Aviso: ${warning} dispositivo(s) tiveram avisos durante o backup.`;
+                infoText = `Aviso: ${warning} e-mail(s) pendente(s) de processamento.`;
             } else {
-                infoText = 'Todos os dispositivos tiveram o backup realizado com sucesso!';
+                infoText = 'Todos os e-mails foram processados com sucesso!';
             }
             backupSummaryInfo.textContent = infoText;
 
-            // Atualizar tabela de resumo
-            updateBackupSummaryTable(allBackupJobs);
+            // Atualizar tabela de resumo (mantém jobs)
+            updateBackupSummaryTable(
+                filteredEmails.flatMap(email => email.backup_jobs || [])
+            );
         }
 
         function updateBackupSummaryTable(backupJobs) {
@@ -356,7 +345,7 @@
 
             // Agrupar por status
             const groupedByStatus = backupJobs.reduce((acc, item) => {
-                const status = item.status ? (item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase()) : 'Desconhecido';
+                const status = item.status ? (item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase()) : 'Máquinas virtuais';
                 if (!acc[status]) {
                     acc[status] = [];
                 }
@@ -394,13 +383,27 @@
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         ${items.map(item => {
-                            // Data e hora
-                            let data = item.data || (item.start_time ? item.start_time.split(' ')[0] : '-');
-                            let hora = item.hora || (item.start_time ? item.start_time.split(' ')[1]?.slice(0,5) : '-');
-                            // Fallback para campos alternativos
-                            if (item.created_at && data === '-') {
-                                data = item.created_at.split(' ')[0];
-                                hora = item.created_at.split(' ')[1]?.slice(0,5);
+                            // Buscar status e data da tabela emails (email relacionado)
+                            // Supondo que o item tenha email_id e que filteredEmails está acessível
+                            let email = null;
+                            if (item.email_id && Array.isArray(filteredEmails)) {
+                                email = filteredEmails.find(e => e.id === item.email_id);
+                            }
+                            // Data do e-mail
+                            let data = email && email.date ? email.date : '-';
+                            // Status do e-mail
+                            let statusEmail = email && typeof email.is_processed !== 'undefined'
+                                ? (email.is_processed ? 'Processado' : 'Pendente')
+                                : '-';
+                            // Hora (mantém lógica anterior)
+                            let hora = '-';
+                            if (item.data) {
+                                hora = item.data;
+                            } else if (item.start_time) {
+                                const parts = item.start_time.split(' ');
+                                hora = parts[0] || '-';
+                            } else if (item.created_at) {
+                                hora = item.created_at.split(' ')[0];
                             }
                             // Total Size e Duração
                             const totalSize = item.total_size || item.totalSize || '-';
@@ -412,11 +415,11 @@
                                 <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${hora}</td>
                                 <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
                                     <span class="px-2 py-1 text-xs rounded-full ${
-                                        item.status === 'Success' ? 'bg-green-100 text-green-800' :
-                                        item.status === 'Warning' ? 'bg-yellow-100 text-yellow-800' :
-                                        'bg-red-100 text-red-800'
+                                        statusEmail === 'Processado' ? 'bg-green-100 text-green-800' :
+                                        statusEmail === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
+                                        'bg-gray-100 text-gray-800'
                                     }">
-                                        ${item.status}
+                                        ${statusEmail}
                                     </span>
                                 </td>
                                 <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${totalSize}</td>

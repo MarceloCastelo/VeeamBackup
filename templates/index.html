@@ -32,9 +32,31 @@
             <!-- Filtros -->
             <div class="bg-white rounded-lg shadow-md p-4 mb-6">
                 <div class="flex flex-wrap items-end gap-4">
-                    <div class="flex-1 min-w-[200px]">
-                        <label for="date-filter" class="block text-sm font-medium text-gray-700 mb-1">Filtrar por Data</label>
-                        <input type="date" id="date-filter" class="w-full p-2 border border-gray-300 rounded-md">
+                    <div class="flex-1 min-w-[260px] relative">
+                        <label for="date-range-input" class="block text-sm font-medium text-gray-700 mb-1">Período</label>
+                        <input type="text" id="date-range-input" readonly placeholder="Selecione o período" class="w-full p-2 border border-gray-300 rounded-md cursor-pointer bg-white" autocomplete="off">
+                        <div id="date-range-picker" class="absolute z-10 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 p-4 hidden w-[320px]">
+                            <div class="flex gap-2">
+                                <div class="flex-1">
+                                    <label class="block text-xs text-gray-500 mb-1">Início</label>
+                                    <input type="date" id="date-range-start" class="w-full p-2 border border-gray-300 rounded-md">
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block text-xs text-gray-500 mb-1">Fim</label>
+                                    <input type="date" id="date-range-end" class="w-full p-2 border border-gray-300 rounded-md">
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-2 mt-4">
+                                <button id="date-range-clear" type="button" class="text-xs px-3 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700">Limpar</button>
+                                <button id="date-range-apply" type="button" class="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white">Aplicar</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="today-backup-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center gap-2" title="Visualizar backups do dia atual">
+                            <i class="fas fa-calendar-day"></i>
+                            Backup de Hoje
+                        </button>
                     </div>
                     <div>
                         <button id="apply-filter" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
@@ -82,10 +104,43 @@
                 </div>
             </div>
 
+            <!-- Resumo dos Backups -->
+            <div id="backup-summary-section" class="bg-white rounded-lg shadow-md p-4 mb-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">Resumo dos Backups dos Dispositivos</h2>
+                <div id="backup-summary-info" class="mb-2 text-gray-700 text-sm">
+                    <!-- Texto informativo será preenchido via JS -->
+                </div>
+                <div class="flex flex-wrap gap-4 mb-4">
+                    <div class="flex items-center gap-2 bg-green-50 px-4 py-2 rounded">
+                        <i class="fas fa-check-circle text-green-500"></i>
+                        <span id="summary-success" class="font-bold text-green-700">0</span>
+                        <span class="text-green-700">Sucesso</span>
+                    </div>
+                    <div class="flex items-center gap-2 bg-yellow-50 px-4 py-2 rounded">
+                        <i class="fas fa-exclamation-triangle text-yellow-500"></i>
+                        <span id="summary-warning" class="font-bold text-yellow-700">0</span>
+                        <span class="text-yellow-700">Aviso</span>
+                    </div>
+                    <div class="flex items-center gap-2 bg-red-50 px-4 py-2 rounded">
+                        <i class="fas fa-times-circle text-red-500"></i>
+                        <span id="summary-error" class="font-bold text-red-700">0</span>
+                        <span class="text-red-700">Erro</span>
+                    </div>
+                </div>
+                <!-- Tabela de dispositivos por status -->
+                <div id="backup-summary-table" class="overflow-x-auto">
+                    <!-- Conteúdo preenchido via JS -->
+                </div>
+            </div>
+
             <!-- Lista de E-mails -->
             <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                <div class="px-4 py-3 border-b border-gray-200">
+                <div class="px-4 py-3 border-b border-gray-200 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <h2 class="text-xl font-semibold text-gray-800">E-mails Recentes</h2>
+                    <!-- Barra de pesquisa por assunto -->
+                    <div class="w-full md:w-72">
+                        <input id="search-subject-input" type="text" placeholder="Pesquisar por assunto..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
@@ -150,7 +205,6 @@
         const totalCountSpan = document.getElementById('total-count');
         const prevPageBtn = document.getElementById('prev-page');
         const nextPageBtn = document.getElementById('next-page');
-        const dateFilterInput = document.getElementById('date-filter');
         const applyFilterBtn = document.getElementById('apply-filter');
         const clearFilterBtn = document.getElementById('clear-filter');
         const refreshBtn = document.getElementById('refresh-btn');
@@ -159,6 +213,22 @@
         const closeModalBtn = document.getElementById('close-modal');
         const emailDetailContent = document.getElementById('email-detail-content');
         const statusChartCanvas = document.getElementById('status-chart');
+
+        // Elementos DOM extras para o novo filtro
+        const dateRangeInput = document.getElementById('date-range-input');
+        const dateRangePicker = document.getElementById('date-range-picker');
+        const dateRangeStart = document.getElementById('date-range-start');
+        const dateRangeEnd = document.getElementById('date-range-end');
+        const dateRangeApply = document.getElementById('date-range-apply');
+        const dateRangeClear = document.getElementById('date-range-clear');
+        const todayBackupBtn = document.getElementById('today-backup-btn');
+        const searchSubjectInput = document.getElementById('search-subject-input');
+
+        // Elementos DOM para o resumo dos backups
+        const summarySuccess = document.getElementById('summary-success');
+        const summaryWarning = document.getElementById('summary-warning');
+        const summaryError = document.getElementById('summary-error');
+        const backupSummaryInfo = document.getElementById('backup-summary-info');
 
         // Funções
         function formatDate(dateString) {
@@ -184,6 +254,24 @@
                 const response = await fetch('/api/emails/');
                 if (!response.ok) throw new Error('Erro ao carregar e-mails');
                 allEmails = await response.json();
+                // Buscar dados de backup para cada e-mail (se não vier junto)
+                // Suporte para API que já retorna backup_data junto do e-mail
+                // Caso não venha, buscar manualmente
+                const needsBackupData = allEmails.some(email => !email.backup_data);
+                if (needsBackupData) {
+                    await Promise.all(allEmails.map(async (email) => {
+                        try {
+                            const resp = await fetch(`/api/email-data/by-email/${email.id}`);
+                            if (resp.ok) {
+                                email.backup_data = await resp.json();
+                            } else {
+                                email.backup_data = [];
+                            }
+                        } catch {
+                            email.backup_data = [];
+                        }
+                    }));
+                }
                 filteredEmails = [...allEmails];
                 updateDashboard();
                 renderEmailsTable();
@@ -203,6 +291,124 @@
                 console.error('Erro:', error);
                 return [];
             }
+        }
+
+        // Função para atualizar o resumo dos backups
+        function updateBackupSummary() {
+            // Agrupa todos os dados de backup dos e-mails filtrados
+            let allBackupData = [];
+            filteredEmails.forEach(email => {
+                if (email.backup_data && Array.isArray(email.backup_data)) {
+                    allBackupData = allBackupData.concat(email.backup_data);
+                }
+            });
+
+            // Se não houver dados, tenta buscar de todos os e-mails
+            if (allBackupData.length === 0 && allEmails.length > 0) {
+                allEmails.forEach(email => {
+                    if (email.backup_data && Array.isArray(email.backup_data)) {
+                        allBackupData = allBackupData.concat(email.backup_data);
+                    }
+                });
+            }
+
+            // Contadores por status
+            let success = 0, warning = 0, error = 0;
+            allBackupData.forEach(item => {
+                if (item.status === 'Success') success++;
+                else if (item.status === 'Warning') warning++;
+                else error++;
+            });
+
+            summarySuccess.textContent = success;
+            summaryWarning.textContent = warning;
+            summaryError.textContent = error;
+
+            // Texto informativo
+            let infoText = '';
+            if (success + warning + error === 0) {
+                infoText = 'Nenhum dado de backup encontrado para os dispositivos no período selecionado.';
+            } else if (error > 0) {
+                infoText = `Atenção: ${error} dispositivo(s) apresentaram erro(s) no backup.`;
+            } else if (warning > 0) {
+                infoText = `Aviso: ${warning} dispositivo(s) tiveram avisos durante o backup.`;
+            } else {
+                infoText = 'Todos os dispositivos foram backupados com sucesso!';
+            }
+            backupSummaryInfo.textContent = infoText;
+
+            // Atualizar tabela de resumo
+            updateBackupSummaryTable(allBackupData);
+        }
+
+        function updateBackupSummaryTable(backupData) {
+            const tableContainer = document.getElementById('backup-summary-table');
+            tableContainer.innerHTML = '';
+
+            if (backupData.length === 0) {
+                tableContainer.innerHTML = `
+                    <div class="p-4 text-center text-gray-500">
+                        Nenhum dado de backup encontrado para os dispositivos no período selecionado.
+                    </div>
+                `;
+                return;
+            }
+
+            // Agrupar por status
+            const groupedByStatus = backupData.reduce((acc, item) => {
+                const status = item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase();
+                if (!acc[status]) {
+                    acc[status] = [];
+                }
+                acc[status].push(item);
+                return acc;
+            }, {});
+
+            // Ordenar chaves
+            const sortedStatusKeys = Object.keys(groupedByStatus).sort((a, b) => {
+                const order = ['Success', 'Warning', 'Error'];
+                return order.indexOf(a) - order.indexOf(b);
+            });
+
+            sortedStatusKeys.forEach(status => {
+                const items = groupedByStatus[status];
+                // Cabeçalho da seção
+                const sectionHeader = document.createElement('div');
+                sectionHeader.className = 'font-semibold text-gray-800 mt-4';
+                sectionHeader.textContent = `${status} (${items.length})`;
+                tableContainer.appendChild(sectionHeader);
+
+                // Tabela para os itens
+                const table = document.createElement('table');
+                table.className = 'min-w-full divide-y divide-gray-200 mb-4';
+                table.innerHTML = `
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dispositivo</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${items.map(item => `
+                        <tr>
+                            <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${item.host || 'N/A'}</td>
+                            <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${formatSimpleDate(item.date)}</td>
+                            <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                                <span class="px-2 py-1 text-xs rounded-full ${
+                                    item.status === 'Success' ? 'bg-green-100 text-green-800' :
+                                    item.status === 'Warning' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-red-100 text-red-800'
+                                }">
+                                    ${item.status}
+                                </span>
+                            </td>
+                        </tr>
+                        `).join('')}
+                    </tbody>
+                `;
+                tableContainer.appendChild(table);
+            });
         }
 
         function renderEmailsTable() {
@@ -239,6 +445,7 @@
             });
             
             updatePagination();
+            updateBackupSummary();
         }
 
         function updatePagination() {
@@ -560,11 +767,40 @@
             });
         }
 
-        function filterByDate(date) {
-            if (!date) {
+        function filterBySubject(subject) {
+            const search = subject.trim().toLowerCase();
+            if (!search) {
                 filteredEmails = [...allEmails];
             } else {
-                filteredEmails = allEmails.filter(email => email.date === date);
+                filteredEmails = allEmails.filter(email =>
+                    (email.subject || '').toLowerCase().includes(search)
+                );
+            }
+            currentPage = 1;
+            renderEmailsTable();
+        }
+
+        function filterByDateRange(startDate, endDate) {
+            if (!startDate && !endDate) {
+                filteredEmails = [...allEmails];
+            } else {
+                filteredEmails = allEmails.filter(email => {
+                    // email.date está no formato 'YYYY-MM-DD'
+                    if (startDate && endDate) {
+                        return email.date >= startDate && email.date <= endDate;
+                    } else if (startDate) {
+                        return email.date >= startDate;
+                    } else if (endDate) {
+                        return email.date <= endDate;
+                    }
+                    return true;
+                });
+            }
+            // Se houver texto na barra de pesquisa, aplicar também o filtro de assunto
+            if (searchSubjectInput.value.trim()) {
+                filteredEmails = filteredEmails.filter(email =>
+                    (email.subject || '').toLowerCase().includes(searchSubjectInput.value.trim().toLowerCase())
+                );
             }
             currentPage = 1;
             renderEmailsTable();
@@ -587,12 +823,15 @@
         });
 
         applyFilterBtn.addEventListener('click', () => {
-            filterByDate(dateFilterInput.value);
+            filterByDateRange(dateRangeStart.value, dateRangeEnd.value);
         });
 
         clearFilterBtn.addEventListener('click', () => {
-            dateFilterInput.value = '';
-            filterByDate(null);
+            dateRangeStart.value = '';
+            dateRangeEnd.value = '';
+            dateRangeInput.value = '';
+            dateRangePicker.classList.add('hidden');
+            filterByDateRange(null, null);
         });
 
         refreshBtn.addEventListener('click', () => {
@@ -603,14 +842,65 @@
             emailDetailModal.classList.add('hidden');
         });
 
-        // Inicialização
+        // Função para abrir/fechar o picker
+        dateRangeInput.addEventListener('click', () => {
+            dateRangePicker.classList.toggle('hidden');
+        });
+
+        // Fechar picker ao clicar fora
+        document.addEventListener('mousedown', (e) => {
+            if (!dateRangePicker.contains(e.target) && e.target !== dateRangeInput) {
+                dateRangePicker.classList.add('hidden');
+            }
+        });
+
+        // Atualizar placeholder do input
+        function updateDateRangeInput() {
+            if (dateRangeStart.value && dateRangeEnd.value) {
+                const start = new Date(dateRangeStart.value);
+                const end = new Date(dateRangeEnd.value);
+                dateRangeInput.value = `${start.toLocaleDateString('pt-BR')} - ${end.toLocaleDateString('pt-BR')}`;
+            } else if (dateRangeStart.value) {
+                const start = new Date(dateRangeStart.value);
+                dateRangeInput.value = `A partir de ${start.toLocaleDateString('pt-BR')}`;
+            } else if (dateRangeEnd.value) {
+                const end = new Date(dateRangeEnd.value);
+                dateRangeInput.value = `Até ${end.toLocaleDateString('pt-BR')}`;
+            } else {
+                dateRangeInput.value = '';
+            }
+        }
+
+        // Aplicar filtro ao clicar em "Aplicar"
+        dateRangeApply.addEventListener('click', () => {
+            dateRangePicker.classList.add('hidden');
+            updateDateRangeInput();
+            filterByDateRange(dateRangeStart.value, dateRangeEnd.value);
+        });
+
+        // Limpar filtro ao clicar em "Limpar"
+        dateRangeClear.addEventListener('click', () => {
+            dateRangeStart.value = '';
+            dateRangeEnd.value = '';
+            dateRangeInput.value = '';
+            dateRangePicker.classList.add('hidden');
+            filterByDateRange(null, null);
+        });
+
+        // Atualizar input ao mudar datas
+        dateRangeStart.addEventListener('change', updateDateRangeInput);
+        dateRangeEnd.addEventListener('change', updateDateRangeInput);
+
+        // Ajustar datas máximas/mínimas
         document.addEventListener('DOMContentLoaded', () => {
             // Atualizar data atual
             const today = new Date();
             currentDateSpan.textContent = today.toLocaleDateString('pt-BR');
             
-            // Definir data máxima no filtro como hoje
-            dateFilterInput.max = today.toISOString().split('T')[0];
+            // Definir data máxima nos filtros como hoje
+            const todayStr = new Date().toISOString().split('T')[0];
+            dateRangeStart.max = todayStr;
+            dateRangeEnd.max = todayStr;
             
             // Carregar dados
             fetchEmails();
@@ -618,6 +908,20 @@
 
         // Funções globais para acesso no HTML
         window.showEmailDetail = showEmailDetail;
+
+        todayBackupBtn.addEventListener('click', () => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            // Limpa o filtro visual e aplica o filtro do dia atual
+            dateRangeStart.value = todayStr;
+            dateRangeEnd.value = todayStr;
+            updateDateRangeInput();
+            filterByDateRange(todayStr, todayStr);
+        });
+
+        // Event Listener para pesquisa por assunto
+        searchSubjectInput.addEventListener('input', (e) => {
+            filterBySubject(e.target.value);
+        });
     </script>
 </body>
 </html>

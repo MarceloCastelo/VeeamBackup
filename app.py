@@ -106,6 +106,19 @@ email_api = EmailAPI(db_name="veeam_emails.db")
 @app.route('/api/emails/', methods=['GET'])
 def get_all_emails():
     emails = email_api.get_all_emails()
+    # Para cada e-mail, anexa os backup_jobs relacionados e ajusta data/hora
+    for email in emails:
+        jobs = email_api.get_backup_jobs_by_email(email['id'])
+        for job in jobs:
+            # Se start_time existir e for no formato 'YYYY-MM-DD HH:MM:SS'
+            if 'start_time' in job and job['start_time']:
+                parts = job['start_time'].split(' ')
+                job['data'] = parts[0] if len(parts) > 0 else ''
+                job['hora'] = parts[1][:5] if len(parts) > 1 else ''
+            else:
+                job['data'] = ''
+                job['hora'] = ''
+        email['backup_jobs'] = jobs
     return jsonify(emails)
 
 @app.route('/api/emails/<int:email_id>', methods=['GET'])

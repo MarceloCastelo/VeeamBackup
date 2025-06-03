@@ -1,0 +1,41 @@
+2025-06-03 17:34:46,021 - INFO - Iniciando servidor Flask...
+2025-06-03 17:34:46,030 - INFO - Servidor Flask iniciado (PID: 13684)
+2025-06-03 17:34:46,031 - INFO - Agendador iniciado. Tarefa diária programada para 7:00
+2025-06-03 17:35:00,657 - INFO - Encerrando agendador...
+2025-06-03 17:35:50,299 - INFO - Iniciando processamento de e-mails...
+2025-06-03 17:35:50,394 - ERROR - Falha no processamento:
+python: can't open file 'C:\\Users\\marcelo.castelo\\Documents\\Desenvolvimento\\VeeamBackup\\email_processor.py': [Errno 2] No such file or directory
+
+2025-06-03 17:35:50,395 - INFO - Iniciando servidor Flask...
+2025-06-03 17:35:50,416 - INFO - Servidor Flask iniciado (PID: 3308)
+2025-06-03 17:35:50,418 - INFO - Agendador iniciado. Tarefa diária programada para 7:00
+2025-06-03 17:36:13,074 - INFO - Encerrando agendador...
+2025-06-03 17:36:39,160 - INFO - Iniciando processamento de e-mails...
+2025-06-03 17:36:39,591 - ERROR - Falha no processamento:
+Traceback (most recent call last):
+  File "C:\Users\marcelo.castelo\Documents\Desenvolvimento\VeeamBackup\email_processor_db.py", line 444, in <module>
+    automation_schedule.every().day.at("08:00").do(job)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'automation_schedule' has no attribute 'every'
+
+2025-06-03 17:36:39,592 - INFO - Iniciando servidor Flask...
+2025-06-03 17:36:39,603 - INFO - Servidor Flask iniciado (PID: 7976)
+2025-06-03 17:36:39,604 - INFO - Agendador iniciado. Tarefa diária programada para 7:00
+2025-06-03 17:39:26,799 - INFO - Iniciando processamento de e-mails...
+2025-06-03 17:39:30,783 - ERROR - Falha no processamento:
+Traceback (most recent call last):
+  File "C:\Users\marcelo.castelo\Documents\Desenvolvimento\VeeamBackup\email_processor_db.py", line 428, in <module>
+    processor.fetch_and_process()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\marcelo.castelo\Documents\Desenvolvimento\VeeamBackup\email_processor_db.py", line 112, in fetch_and_process
+    print(f"\n\U0001f50e {len(emails)} e-mails encontrados. Processando...")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f50e' in position 2: character maps to <undefined>
+
+2025-06-03 17:39:30,785 - INFO - Iniciando servidor Flask...
+2025-06-03 17:39:30,796 - INFO - Servidor Flask iniciado (PID: 4516)
+2025-06-03 17:39:30,799 - INFO - Agendador iniciado. Tarefa diária programada para 7:00
+2025-06-03 17:39:40,974 - INFO - Encerrando agendador...

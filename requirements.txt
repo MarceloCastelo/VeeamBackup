@@ -1,0 +1,4 @@
+Flask==2.3.2
+schedule==1.2.0
+typing-extensions==4.7.1
+imaplib2==3.6

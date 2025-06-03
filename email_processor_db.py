@@ -5,6 +5,7 @@ import email
 from email.header import decode_header
 import re
 from datetime import datetime
+import time
 
 class EmailProcessor:
     """Classe para processar e-mails do Veeam e armazenar no banco de dados SQLite"""
@@ -423,17 +424,13 @@ if __name__ == "__main__":
         password="adt@curado1932",
         target_sender="veeam.adtsa@gmail.com"
     )
-    
-    # Processar e-mails
+    # Executa o processamento imediatamente ao rodar o script
     processor.fetch_and_process()
-    
-    # Exibir resultados
     print("\n📋 Relatório de processamento:")
     for email in processor.get_processed_emails():
-        email_id, subject, date, time = email
-        print(f"\n📩 ID: {email_id} | {date} {time}")
+        email_id, subject, date, time_ = email
+        print(f"\n📩 ID: {email_id} | {date} {time_}")
         print(f"📌 Assunto: {subject[:60]}...")
-        
         data = processor.get_email_data(email_id)
         print(f"📊 Dados ({len(data)} hosts):")
         for host, ip, status, _ in data[:3]:  # Mostrar apenas 3 itens

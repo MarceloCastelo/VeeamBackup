@@ -272,19 +272,25 @@
                         <i class="fas fa-spinner fa-spin text-3xl text-blue-500"></i>
                     </div>
                 `;
-                
-                // Abrir modal
                 emailDetailModal.classList.remove('hidden');
-                
-                // Buscar detalhes do e-mail e seus dados
-                const [emailResponse, dataResponse] = await Promise.all([
+
+                // Buscar detalhes do e-mail, dados antigos, jobs e VMs
+                const [emailResponse, dataResponse, jobsResponse] = await Promise.all([
                     fetch(`/api/emails/${emailId}`),
-                    fetchEmailDetails(emailId)
+                    fetchEmailDetails(emailId),
+                    fetch(`/api/backup-jobs/by-email/${emailId}`)
                 ]);
-                
                 if (!emailResponse.ok) throw new Error('Erro ao carregar e-mail');
                 const email = await emailResponse.json();
-                
+                const jobs = jobsResponse.ok ? await jobsResponse.json() : [];
+
+                // Buscar VMs do primeiro job (se houver)
+                let vms = [];
+                if (jobs.length > 0) {
+                    const vmsResp = await fetch(`/api/backup-vms/by-job/${jobs[0].id}`);
+                    vms = vmsResp.ok ? await vmsResp.json() : [];
+                }
+
                 // Renderizar conteúdo
                 emailDetailContent.innerHTML = `
                     <div class="mb-6">
@@ -316,8 +322,7 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <div>
+                    <div class="mb-6">
                         <h4 class="text-lg font-semibold mb-2">Dados do Backup</h4>
                         ${dataResponse.length > 0 ? `
                         <div class="overflow-x-auto">
@@ -356,6 +361,118 @@
                         </div>
                         `}
                     </div>
+                    ${jobs.length > 0 ? `
+                    <div class="mb-6">
+                        <h4 class="text-lg font-semibold mb-2">Resumo do Job</h4>
+                        <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm text-gray-500">Job</p>
+                                    <p class="font-medium">${jobs[0].job_name || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Criado por</p>
+                                    <p class="font-medium">${jobs[0].created_by || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Criado em</p>
+                                    <p class="font-medium">${jobs[0].created_at || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">VMs processadas</p>
+                                    <p class="font-medium">${jobs[0].processed_vms || '-'} de ${jobs[0].processed_vms_total || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Success</p>
+                                    <p class="font-medium">${jobs[0].summary_success || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Warning</p>
+                                    <p class="font-medium">${jobs[0].summary_warning || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Error</p>
+                                    <p class="font-medium">${jobs[0].summary_error || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Início</p>
+                                    <p class="font-medium">${jobs[0].start_time || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Fim</p>
+                                    <p class="font-medium">${jobs[0].end_time || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Duração</p>
+                                    <p class="font-medium">${jobs[0].duration || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Total Size</p>
+                                    <p class="font-medium">${jobs[0].total_size || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Backup Size</p>
+                                    <p class="font-medium">${jobs[0].backup_size || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Data Read</p>
+                                    <p class="font-medium">${jobs[0].data_read || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Dedupe</p>
+                                    <p class="font-medium">${jobs[0].dedupe || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Transferred</p>
+                                    <p class="font-medium">${jobs[0].transferred || '-'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Compression</p>
+                                    <p class="font-medium">${jobs[0].compression || '-'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <h4 class="text-lg font-semibold mb-2">VMs do Job</h4>
+                        ${vms.length > 0 ? `
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Início</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fim</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tamanho</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Lido</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Transferido</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duração</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Detalhes</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${vms.map(vm => `
+                                    <tr>
+                                        <td class="px-4 py-2">${vm.name}</td>
+                                        <td class="px-4 py-2">${vm.status}</td>
+                                        <td class="px-4 py-2">${vm.start_time}</td>
+                                        <td class="px-4 py-2">${vm.end_time}</td>
+                                        <td class="px-4 py-2">${vm.size}</td>
+                                        <td class="px-4 py-2">${vm.read}</td>
+                                        <td class="px-4 py-2">${vm.transferred}</td>
+                                        <td class="px-4 py-2">${vm.duration}</td>
+                                        <td class="px-4 py-2">${vm.details}</td>
+                                    </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        ` : `
+                        <div class="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
+                            Nenhuma VM encontrada para este job
+                        </div>
+                        `}
+                    </div>
+                    ` : ''}
                 `;
             } catch (error) {
                 console.error('Erro:', error);

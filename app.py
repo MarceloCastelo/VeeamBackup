@@ -68,6 +68,35 @@ class EmailAPI:
             ORDER BY host
         ''', (date,))
 
+    # 📦 Tabela backup_jobs
+    def get_all_backup_jobs(self) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM backup_jobs
+            ORDER BY id DESC
+        ''')
+
+    def get_backup_job(self, job_id: int) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM backup_jobs WHERE id = ?
+        ''', (job_id,))
+
+    def get_backup_jobs_by_email(self, email_id: int) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM backup_jobs WHERE email_id = ?
+        ''', (email_id,))
+
+    # 🖥️ Tabela backup_vms
+    def get_vms_by_job(self, job_id: int) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM backup_vms WHERE job_id = ?
+        ''', (job_id,))
+
+    def get_all_vms(self) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM backup_vms
+            ORDER BY id DESC
+        ''')
+
 
 # Inicializa a API
 email_api = EmailAPI(db_name="veeam_emails.db")
@@ -123,6 +152,36 @@ def get_email_data_by_date():
     
     data = email_api.get_email_data_by_date(date)
     return jsonify(data)
+
+
+# 📦 Rotas para backup_jobs
+@app.route('/api/backup-jobs/', methods=['GET'])
+def get_all_backup_jobs():
+    jobs = email_api.get_all_backup_jobs()
+    return jsonify(jobs)
+
+@app.route('/api/backup-jobs/<int:job_id>', methods=['GET'])
+def get_backup_job(job_id):
+    job = email_api.get_backup_job(job_id)
+    if not job:
+        return jsonify({"error": "Job não encontrado"}), 404
+    return jsonify(job[0])
+
+@app.route('/api/backup-jobs/by-email/<int:email_id>', methods=['GET'])
+def get_backup_jobs_by_email(email_id):
+    jobs = email_api.get_backup_jobs_by_email(email_id)
+    return jsonify(jobs)
+
+# 🖥️ Rotas para backup_vms
+@app.route('/api/backup-vms/', methods=['GET'])
+def get_all_vms():
+    vms = email_api.get_all_vms()
+    return jsonify(vms)
+
+@app.route('/api/backup-vms/by-job/<int:job_id>', methods=['GET'])
+def get_vms_by_job(job_id):
+    vms = email_api.get_vms_by_job(job_id)
+    return jsonify(vms)
 
 
 if __name__ == '__main__':

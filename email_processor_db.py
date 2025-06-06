@@ -138,10 +138,10 @@ class EmailProcessor:
             with sqlite3.connect(self.db_name) as conn:
                 cursor = conn.cursor()
                 
-                # Processar data e hora ANTES da verificação de duplicidade
+                # Processar data e hora
                 date_obj, time_str = self._parse_email_datetime(email_data["date"])
                 
-                # Verificar se e-mail já existe (subject, date, sent_time)
+                # Verificar se e-mail já existe (agora usando subject, date e sent_time)
                 cursor.execute('''
                     SELECT id FROM emails 
                     WHERE subject = ? AND date = ? AND sent_time = ?

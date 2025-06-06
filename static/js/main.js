@@ -1,21 +1,14 @@
- // Variáveis globais
-        let currentPage = 1;
-        const itemsPerPage = 5;
+// Variáveis globais
         let allEmails = [];
         let filteredEmails = [];
         let statusChart = null;
 
         // Elementos DOM
-        const emailsTableBody = document.getElementById('emails-table-body');
         const totalEmailsSpan = document.getElementById('total-emails');
         const processedEmailsSpan = document.getElementById('processed-emails');
         const pendingEmailsSpan = document.getElementById('pending-emails');
         // Adicionado para erros:
         const errorEmailsSpan = document.getElementById('error-emails');
-        const showingCountSpan = document.getElementById('showing-count');
-        const totalCountSpan = document.getElementById('total-count');
-        const prevPageBtn = document.getElementById('prev-page');
-        const nextPageBtn = document.getElementById('next-page');
         const refreshBtn = document.getElementById('refresh-btn');
         const currentDateSpan = document.getElementById('current-date');
         const emailDetailModal = document.getElementById('email-detail-modal');
@@ -30,11 +23,37 @@
         const backupSummaryInfo = document.getElementById('backup-summary-info');
         // Elemento do filtro de data
         const backupSummaryDateInput = document.getElementById('backup-summary-date');
-        // Elemento do filtro de data dos backups recentes
-        const recentBackupsDateInput = document.getElementById('recent-backups-date');
-        let recentBackupsSelectedDate = null;
         // Variável para armazenar a data filtrada
         let backupSummarySelectedDate = null;
+
+        // Adiciona modal para detalhes do backup_job
+        let backupJobDetailModal = document.getElementById('backup-job-detail-modal');
+        let backupJobDetailContent = document.getElementById('backup-job-detail-content');
+        let closeBackupJobModalBtn = null;
+
+        if (!backupJobDetailModal) {
+            backupJobDetailModal = document.createElement('div');
+            backupJobDetailModal.id = 'backup-job-detail-modal';
+            backupJobDetailModal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden';
+            backupJobDetailModal.innerHTML = `
+                <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl p-6 relative">
+                    <button id="close-backup-job-modal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-xl">&times;</button>
+                    <div id="backup-job-detail-content"></div>
+                </div>
+            `;
+            document.body.appendChild(backupJobDetailModal);
+            backupJobDetailContent = document.getElementById('backup-job-detail-content');
+        }
+        // Remover o antigo event listener e adicionar um novo após cada abertura do modal
+        function attachCloseBackupJobModalBtn() {
+            closeBackupJobModalBtn = document.getElementById('close-backup-job-modal');
+            if (closeBackupJobModalBtn) {
+                closeBackupJobModalBtn.onclick = () => {
+                    backupJobDetailModal.classList.add('hidden');
+                };
+            }
+        }
+        attachCloseBackupJobModalBtn();
 
         // Funções
         function formatDate(dateString) {
@@ -95,8 +114,7 @@
                 }
                 filteredEmails = [...allEmails];
                 updateDashboard();
-                renderEmailsTable();
-                updateChart();
+                updateBackupSummary();
             } catch (error) {
                 console.error('Erro:', error);
                 alert('Erro ao carregar dados. Tente novamente.');
@@ -129,21 +147,34 @@
         function updateBackupSummary() {
             // Usa os emails filtrados pela data selecionada do resumo (NÃO usa filteredEmails)
             const emailsForSummary = getFilteredEmailsBySummaryDate();
-            // Contadores por status baseados na tabela emails (não nos jobs)
+            // Contadores por status baseados nos jobs (não só na tabela emails)
             let success = 0, warning = 0, error = 0;
-            emailsForSummary.forEach(email => {
-                // Verifica se algum backup_job desse email tem "Retry" no nome
-                const hasRetry = (email.backup_jobs || []).some(job =>
-                    ((job.job_name || job.host || '').toLowerCase().includes('retry'))
-                );
-                if (hasRetry) {
-                    warning++;
-                } else if (email.is_processed === 1 || email.is_processed === true) {
-                    success++;
-                } else if (email.is_processed === 0 || email.is_processed === false) {
-                    warning++;
-                } else {
+            const allJobs = emailsForSummary.flatMap(email => email.backup_jobs || []);
+            allJobs.forEach(job => {
+                // Se Error == 1, conta como erro
+                if (job.Error == 1 || job.summary_error == 1 || job.error == 1) {
                     error++;
+                } else if ((job.status && (job.status === 'Warning' || job.status === 'warning'))) {
+                    warning++;
+                // Removido: lógica de retry como warning
+                // } else if ((job.status && (job.status === 'Warning' || job.status === 'warning')) ||
+                //     ((job.job_name || job.host || '').toLowerCase().includes('retry'))) {
+                //     warning++;
+                } else if (job.status && (job.status === 'Success' || job.status === 'success')) {
+                    success++;
+                } else {
+                    // Se não tem status, tenta usar o status do e-mail
+                    let email = null;
+                    if (job.email_id && Array.isArray(emailsForSummary)) {
+                        email = emailsForSummary.find(e => e.id === job.email_id);
+                    }
+                    if (email && (email.is_processed === 1 || email.is_processed === true)) {
+                        success++;
+                    } else if (email && (email.is_processed === 0 || email.is_processed === false)) {
+                        warning++;
+                    } else {
+                        error++;
+                    }
                 }
             });
 
@@ -156,7 +187,7 @@
             if (success + warning + error === 0) {
                 infoText = 'Nenhum dado de backup encontrado para os dispositivos no período selecionado.';
             } else if (error > 0) {
-                infoText = `Atenção: ${error} backup(s) com status desconhecido.`;
+                infoText = `Atenção: ${error} backup(s) com erro.`;
             } else if (warning > 0) {
                 infoText = `Aviso: ${warning} Backups foram concluídos, porém, com problemas. Verifique os detalhes.`;
             } else {
@@ -165,9 +196,234 @@
             backupSummaryInfo.textContent = infoText;
 
             // Atualizar tabela de resumo (mantém jobs)
-            updateBackupSummaryTable(
-                emailsForSummary.flatMap(email => email.backup_jobs || [])
-            );
+            updateBackupSummaryTable(allJobs);
+        }
+
+        // Função para mostrar detalhes do backup_job
+        async function showBackupJobDetail(emailId, jobName) {
+            backupJobDetailContent.innerHTML = `
+                <div class="flex justify-center items-center h-32">
+                    <i class="fas fa-spinner fa-spin text-3xl text-blue-500"></i>
+                </div>
+            `;
+            backupJobDetailModal.classList.remove('hidden');
+            // Garante que o botão fechar funcione sempre que o modal for aberto
+            setTimeout(() => {
+                const closeBtn = document.getElementById('close-backup-job-modal');
+                if (closeBtn) {
+                    closeBtn.onclick = () => {
+                        backupJobDetailModal.classList.add('hidden');
+                    };
+                }
+            }, 0);
+            try {
+                // Busca jobs do e-mail
+                const jobsResp = await fetch(`/api/backup-jobs/by-email/${emailId}`);
+                const jobs = jobsResp.ok ? await jobsResp.json() : [];
+                // Busca VMs do job selecionado
+                const job = jobs.find(j => (j.job_name || j.host) === jobName);
+                let vms = [];
+                if (job && job.id) {
+                    const vmsResp = await fetch(`/api/backup-vms/by-job/${job.id}`);
+                    vms = vmsResp.ok ? await vmsResp.json() : [];
+                }
+                if (!job) {
+                    backupJobDetailContent.innerHTML = `<div class="p-4 text-center text-gray-500">Job não encontrado.</div>`;
+                    return;
+                }
+                backupJobDetailContent.innerHTML = `
+                    <h4 class="text-lg font-semibold mb-2">Detalhes do Job: ${job.job_name || job.host}</h4>
+                    <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Job</p>
+                                <p class="font-medium">${job.job_name || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Criado por</p>
+                                <p class="font-medium">${job.created_by || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Criado em</p>
+                                <p class="font-medium">${job.created_at || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">VMs processadas</p>
+                                <p class="font-medium">${job.processed_vms || '-'} de ${job.processed_vms_total || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Success</p>
+                                <p class="font-medium">${job.summary_success || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Warning</p>
+                                <p class="font-medium">${job.summary_warning || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Error</p>
+                                <p class="font-medium">${job.summary_error || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Início</p>
+                                <p class="font-medium">${job.start_time || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Fim</p>
+                                <p class="font-medium">${job.end_time || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Duração</p>
+                                <p class="font-medium">${job.duration || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Total Size</p>
+                                <p class="font-medium">${job.total_size || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Backup Size</p>
+                                <p class="font-medium">${job.backup_size || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Data Read</p>
+                                <p class="font-medium">${job.data_read || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Dedupe</p>
+                                <p class="font-medium">${job.dedupe || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Transferred</p>
+                                <p class="font-medium">${job.transferred || '-'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Compression</p>
+                                <p class="font-medium">${job.compression || '-'}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <h4 class="text-lg font-semibold mb-2">VMs do Job</h4>
+                    ${vms.length > 0 ? `
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Início</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fim</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tamanho</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Lido</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Transferido</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duração</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Detalhes</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${vms.map(vm => `
+                                <tr>
+                                    <td class="px-4 py-2">${vm.name}</td>
+                                    <td class="px-4 py-2">${vm.status}</td>
+                                    <td class="px-4 py-2">${vm.start_time}</td>
+                                    <td class="px-4 py-2">${vm.end_time}</td>
+                                    <td class="px-4 py-2">${vm.size}</td>
+                                    <td class="px-4 py-2">${vm.read}</td>
+                                    <td class="px-4 py-2">${vm.transferred}</td>
+                                    <td class="px-4 py-2">${vm.duration}</td>
+                                    <td class="px-4 py-2">${vm.details}</td>
+                                </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    ` : `
+                    <div class="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
+                        Nenhuma VM encontrada para este job
+                    </div>
+                    `}
+                `;
+            } catch (error) {
+                backupJobDetailContent.innerHTML = `
+                    <div class="bg-red-50 border-l-4 border-red-400 p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle text-red-400"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm text-red-700">
+                                    Erro ao carregar detalhes do backup_job. Tente novamente.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Função para filtrar os emails por data para o resumo dos backups
+        function getFilteredEmailsBySummaryDate() {
+            if (!backupSummarySelectedDate) return allEmails;
+            // backupSummarySelectedDate está em formato 'YYYY-MM-DD'
+            return allEmails.filter(email => {
+                if (!email.date) return false;
+                const emailDate = new Date(email.date).toISOString().slice(0, 10);
+                return emailDate === backupSummarySelectedDate;
+            });
+        }
+
+        // Função para atualizar o resumo dos backups
+        function updateBackupSummary() {
+            // Usa os emails filtrados pela data selecionada do resumo (NÃO usa filteredEmails)
+            const emailsForSummary = getFilteredEmailsBySummaryDate();
+            // Contadores por status baseados nos jobs (não só na tabela emails)
+            let success = 0, warning = 0, error = 0;
+            const allJobs = emailsForSummary.flatMap(email => email.backup_jobs || []);
+            allJobs.forEach(job => {
+                // Se Error == 1, conta como erro
+                if (job.Error == 1 || job.summary_error == 1 || job.error == 1) {
+                    error++;
+                } else if ((job.status && (job.status === 'Warning' || job.status === 'warning'))) {
+                    warning++;
+                // Removido: lógica de retry como warning
+                // } else if ((job.status && (job.status === 'Warning' || job.status === 'warning')) ||
+                //     ((job.job_name || job.host || '').toLowerCase().includes('retry'))) {
+                //     warning++;
+                } else if (job.status && (job.status === 'Success' || job.status === 'success')) {
+                    success++;
+                } else {
+                    // Se não tem status, tenta usar o status do e-mail
+                    let email = null;
+                    if (job.email_id && Array.isArray(emailsForSummary)) {
+                        email = emailsForSummary.find(e => e.id === job.email_id);
+                    }
+                    if (email && (email.is_processed === 1 || email.is_processed === true)) {
+                        success++;
+                    } else if (email && (email.is_processed === 0 || email.is_processed === false)) {
+                        warning++;
+                    } else {
+                        error++;
+                    }
+                }
+            });
+
+            summarySuccess.textContent = success;
+            summaryWarning.textContent = warning;
+            summaryError.textContent = error;
+
+            // Texto informativo
+            let infoText = '';
+            if (success + warning + error === 0) {
+                infoText = 'Nenhum dado de backup encontrado para os dispositivos no período selecionado.';
+            } else if (error > 0) {
+                infoText = `Atenção: ${error} backup(s) com erro.`;
+            } else if (warning > 0) {
+                infoText = `Aviso: ${warning} Backups foram concluídos, porém, com problemas. Verifique os detalhes.`;
+            } else {
+                infoText = 'Todos os backups foram processados com sucesso!';
+            }
+            backupSummaryInfo.textContent = infoText;
+
+            // Atualizar tabela de resumo (mantém jobs)
+            updateBackupSummaryTable(allJobs);
         }
 
         function updateBackupSummaryTable(backupJobs) {
@@ -235,10 +491,14 @@
                             let statusEmail = email && typeof email.is_processed !== 'undefined'
                                 ? (email.is_processed ? 'Processado' : 'Pendente')
                                 : '-';
-                            // Se o nome do job ou host contém "Retry", força status para "Aviso"
-                            const nameForRetry = (item.job_name || item.host || '').toLowerCase();
-                            if (nameForRetry.includes('retry')) {
-                                statusEmail = 'Aviso';
+                            // Removido: lógica de retry como aviso
+                            // const nameForRetry = (item.job_name || item.host || '').toLowerCase();
+                            // if (nameForRetry.includes('retry')) {
+                            //     statusEmail = 'Aviso';
+                            // }
+                            // Se Error == 1, força status para "Erro"
+                            if (item.Error == 1 || item.summary_error == 1 || item.error == 1) {
+                                statusEmail = 'Erro';
                             }
                             // Hora (mantém lógica anterior)
                             let hora = '-';
@@ -253,9 +513,14 @@
                             // Total Size e Duração
                             const totalSize = item.total_size || item.totalSize || '-';
                             const duracao = item.duration || item.duracao || '-';
+                            // Torna o nome do dispositivo clicável
                             return `
                             <tr>
-                                <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${item.job_name || item.host || 'N/A'}</td>
+                                <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    <a href="#" class="text-blue-600 hover:underline" onclick="showBackupJobDetail(${item.email_id}, '${(item.job_name || item.host || '').replace(/'/g, "\\'")}'); return false;">
+                                        ${item.job_name || item.host || 'N/A'}
+                                    </a>
+                                </td>
                                 <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${data}</td>
                                 <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${hora}</td>
                                 <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
@@ -263,6 +528,7 @@
                                         statusEmail === 'Processado' ? 'bg-green-100 text-green-800' :
                                         statusEmail === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
                                         statusEmail === 'Aviso' ? 'bg-yellow-100 text-yellow-800' :
+                                        statusEmail === 'Erro' ? 'bg-red-100 text-red-800' :
                                         'bg-gray-100 text-gray-800'
                                     }">
                                         ${statusEmail}
@@ -279,93 +545,23 @@
             });
         }
 
-        function renderEmailsTable() {
-            emailsTableBody.innerHTML = '';
-            
-            const startIndex = (currentPage - 1) * itemsPerPage;
-            const endIndex = startIndex + itemsPerPage;
-            const emailsToShow = filteredEmails.slice(startIndex, endIndex);
-            
-            if (emailsToShow.length === 0) {
-                emailsTableBody.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">Nenhum e-mail encontrado</td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            emailsToShow.forEach(email => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${email.id}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${email.subject || 'Sem assunto'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(email.date + 'T' + email.sent_time)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${getStatusBadge(email.is_processed, email)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onclick="showEmailDetail(${email.id})" class="text-blue-600 hover:text-blue-800 mr-3">
-                            <i class="fas fa-eye"></i> Detalhes
-                        </button>
-                    </td>
-                `;
-                emailsTableBody.appendChild(row);
-            });
-            
-            updatePagination();
-            updateBackupSummary();
-        }
-
-        function updatePagination() {
-            const totalPages = Math.ceil(filteredEmails.length / itemsPerPage);
-            
-            showingCountSpan.textContent = Math.min(
-                currentPage * itemsPerPage, 
-                filteredEmails.length
-            );
-            totalCountSpan.textContent = filteredEmails.length;
-            
-            prevPageBtn.disabled = currentPage === 1;
-            nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
-        }
-
         function updateDashboard() {
-            totalEmailsSpan.textContent = allEmails.length;
+            // Soma total de backup_jobs em todos os e-mails
+            const allJobs = allEmails.flatMap(email => Array.isArray(email.backup_jobs) ? email.backup_jobs : []);
+            const totalBackupJobs = allJobs.length;
+            totalEmailsSpan.textContent = totalBackupJobs;
 
-            // Processados: emails que são processados e NÃO são aviso (não têm status Warning e não têm Retry)
-            const processed = allEmails.filter(email => {
-                // Não é warning nem retry
-                const isWarning =
-                    (email.status === 'Warning' || email.status === 'warning') ||
-                    (Array.isArray(email.backup_jobs) && email.backup_jobs.some(job =>
-                        ((job.job_name || job.host || '').toLowerCase().includes('retry'))
-                    ));
-                return (email.is_processed === 1 || email.is_processed === true) && !isWarning;
-            }).length;
+            // Processados: jobs com summary_success == 1
+            const processed = allJobs.filter(job => job.summary_success == 1).length;
             processedEmailsSpan.textContent = processed;
 
-            // Avisos: emails com status Warning OU algum backup_job com Retry
-            const warning = allEmails.filter(email =>
-                (email.status === 'Warning' || email.status === 'warning') ||
-                (Array.isArray(email.backup_jobs) && email.backup_jobs.some(job =>
-                    ((job.job_name || job.host || '').toLowerCase().includes('retry'))
-                ))
-            ).length;
-            pendingEmailsSpan.textContent = warning;
-
-            // Erros (mantém lógica anterior)
-            let error = 0;
-            allEmails.forEach(email => {
-                if (
-                    email.is_processed !== 1 &&
-                    email.is_processed !== true &&
-                    email.is_processed !== 0 &&
-                    email.is_processed !== false
-                ) {
-                    error++;
-                }
-            });
+            // Erros: jobs com summary_error == 1
+            const error = allJobs.filter(job => job.summary_error == 1).length;
             errorEmailsSpan.textContent = error;
+
+            // Pendentes: todos os outros jobs (não processados nem erro)
+            const pending = totalBackupJobs - processed - error;
+            pendingEmailsSpan.textContent = pending;
         }
 
         async function showEmailDetail(emailId) {
@@ -597,139 +793,11 @@
             }
         }
 
-        function updateChart() {
-            // Gera os últimos 7 dias (incluindo hoje)
-            const days = [];
-            const today = new Date();
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(today);
-                d.setDate(today.getDate() - i);
-                days.push(d);
-            }
-            const labels = days.map(d => d.toLocaleDateString('pt-BR'));
-
-            // Inicializa contadores por status para cada dia
-            const dataByDay = labels.map(() => ({ success: 0, warning: 0, error: 0 }));
-
-            // Para cada e-mail, aplica a mesma lógica do resumo para determinar o status
-            allEmails.forEach(email => {
-                // Descobre o índice do dia correspondente
-                const emailDate = new Date(email.date);
-                const label = emailDate.toLocaleDateString('pt-BR');
-                const idx = labels.indexOf(label);
-                if (idx === -1) return; // fora dos 7 dias
-
-                // Lógica igual ao updateBackupSummary
-                const hasRetry = (email.backup_jobs || []).some(job =>
-                    ((job.job_name || job.host || '').toLowerCase().includes('retry'))
-                );
-                if (hasRetry) {
-                    dataByDay[idx].warning++;
-                } else if (email.is_processed === 1 || email.is_processed === true) {
-                    dataByDay[idx].success++;
-                } else if (email.is_processed === 0 || email.is_processed === false) {
-                    dataByDay[idx].warning++;
-                } else {
-                    dataByDay[idx].error++;
-                }
-            });
-
-            // Prepara datasets para Chart.js
-            const successData = dataByDay.map(d => d.success);
-            const warningData = dataByDay.map(d => d.warning);
-            const errorData = dataByDay.map(d => d.error);
-
-            if (statusChart) {
-                statusChart.destroy();
-            }
-
-            statusChart = new Chart(statusChartCanvas, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Sucesso',
-                            data: successData,
-                            backgroundColor: '#10B981',
-                            stack: 'Status'
-                        },
-                        {
-                            label: 'Aviso',
-                            data: warningData,
-                            backgroundColor: '#F59E0B',
-                            stack: 'Status'
-                        },
-                        {
-                            label: 'Erro',
-                            data: errorData,
-                            backgroundColor: '#EF4444',
-                            stack: 'Status'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'top' }
-                    },
-                    scales: {
-                        x: { stacked: true },
-                        y: {
-                            stacked: true,
-                            beginAtZero: true,
-                            ticks: { precision: 0 }
-                        }
-                    }
-                }
-            });
-        }
-
-        function filterBySubject(subject) {
-            const search = subject.trim().toLowerCase();
-            if (!search) {
-                filteredEmails = [...allEmails];
-            } else {
-                filteredEmails = allEmails.filter(email =>
-                    (email.subject || '').toLowerCase().includes(search)
-                );
-            }
-            currentPage = 1;
-            renderEmailsTable();
-        }
-
-        // Função para filtrar por data em backups recentes
-        function filterEmailsByRecentDate() {
-            if (!recentBackupsSelectedDate) {
-                filteredEmails = [...allEmails];
-            } else {
-                filteredEmails = allEmails.filter(email => {
-                    if (!email.date) return false;
-                    const emailDate = new Date(email.date).toISOString().slice(0, 10);
-                    return emailDate === recentBackupsSelectedDate;
-                });
-            }
-            currentPage = 1;
-            renderEmailsTable();
-        }
+        // Funções globais para acesso no HTML
+        window.showEmailDetail = showEmailDetail;
+        window.showBackupJobDetail = showBackupJobDetail;
 
         // Event Listeners
-        prevPageBtn.addEventListener('click', () => {
-            if (currentPage > 1) {
-                currentPage--;
-                renderEmailsTable();
-            }
-        });
-
-        nextPageBtn.addEventListener('click', () => {
-            const totalPages = Math.ceil(filteredEmails.length / itemsPerPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                renderEmailsTable();
-            }
-        });
-
         refreshBtn.addEventListener('click', () => {
             fetchEmails();
         });
@@ -749,9 +817,6 @@
             const yesterdayStr = yesterday.toISOString().slice(0, 10);
             backupSummaryDateInput.value = yesterdayStr;
             backupSummarySelectedDate = yesterdayStr;
-            // Define valor padrão do filtro de data dos backups recentes como vazio (mostrar todos)
-            recentBackupsDateInput.value = '';
-            recentBackupsSelectedDate = null;
             // Carregar dados
             fetchEmails();
         });
@@ -760,18 +825,4 @@
         backupSummaryDateInput.addEventListener('change', (e) => {
             backupSummarySelectedDate = e.target.value;
             updateBackupSummary();
-        });
-
-        // Event listener para filtro de data dos backups recentes
-        recentBackupsDateInput.addEventListener('change', (e) => {
-            recentBackupsSelectedDate = e.target.value;
-            filterEmailsByRecentDate();
-        });
-
-        // Funções globais para acesso no HTML
-        window.showEmailDetail = showEmailDetail;
-
-        // Event Listener para pesquisa por assunto
-        searchSubjectInput.addEventListener('input', (e) => {
-            filterBySubject(e.target.value);
         });

@@ -163,15 +163,25 @@ class EmailProcessor:
             return None
     
     def _process_messages(self, mail, email_ids: List[bytes]) -> List[Dict]:
-        """Extrai conteúdo das mensagens IMAP"""
+        """Extrai conteúdo das mensagens IMAP, evitando duplicidade"""
         emails = []
+        # Buscar IDs de e-mails já processados
+        with sqlite3.connect(self.db_name) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT subject, date FROM emails')
+            processed = set((row[0], row[1]) for row in cursor.fetchall())
         for email_id in email_ids:
             status, data = mail.fetch(email_id, "(RFC822)")
             if status == "OK":
                 msg = email.message_from_bytes(data[0][1])
+                subject = self._decode_header(msg["Subject"])
+                date = msg["Date"]
+                # Evita processar e-mails já existentes
+                if (subject, date) in processed:
+                    continue
                 emails.append({
-                    "subject": self._decode_header(msg["Subject"]),
-                    "date": msg["Date"],
+                    "subject": subject,
+                    "date": date,
                     "body": self._extract_body(msg)
                 })
         return emails

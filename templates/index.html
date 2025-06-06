@@ -298,7 +298,13 @@
             // Contadores por status baseados na tabela emails (não nos jobs)
             let success = 0, warning = 0, error = 0;
             filteredEmails.forEach(email => {
-                if (email.is_processed === 1 || email.is_processed === true) {
+                // Verifica se algum backup_job desse email tem "Retry" no nome
+                const hasRetry = (email.backup_jobs || []).some(job =>
+                    ((job.job_name || job.host || '').toLowerCase().includes('retry'))
+                );
+                if (hasRetry) {
+                    warning++;
+                } else if (email.is_processed === 1 || email.is_processed === true) {
                     success++;
                 } else if (email.is_processed === 0 || email.is_processed === false) {
                     warning++;
@@ -316,11 +322,11 @@
             if (success + warning + error === 0) {
                 infoText = 'Nenhum dado de backup encontrado para os dispositivos no período selecionado.';
             } else if (error > 0) {
-                infoText = `Atenção: ${error} e-mail(s) com status desconhecido.`;
+                infoText = `Atenção: ${error} backup(s) com status desconhecido.`;
             } else if (warning > 0) {
-                infoText = `Aviso: ${warning} e-mail(s) pendente(s) de processamento.`;
+                infoText = `Aviso: ${warning} backups não foram realizados corretamente`;
             } else {
-                infoText = 'Todos os e-mails foram processados com sucesso!';
+                infoText = 'Todos os backups foram processados com sucesso!';
             }
             backupSummaryInfo.textContent = infoText;
 
@@ -395,6 +401,11 @@
                             let statusEmail = email && typeof email.is_processed !== 'undefined'
                                 ? (email.is_processed ? 'Processado' : 'Pendente')
                                 : '-';
+                            // Se o nome do job ou host contém "Retry", força status para "Aviso"
+                            const nameForRetry = (item.job_name || item.host || '').toLowerCase();
+                            if (nameForRetry.includes('retry')) {
+                                statusEmail = 'Aviso';
+                            }
                             // Hora (mantém lógica anterior)
                             let hora = '-';
                             if (item.data) {
@@ -417,6 +428,7 @@
                                     <span class="px-2 py-1 text-xs rounded-full ${
                                         statusEmail === 'Processado' ? 'bg-green-100 text-green-800' :
                                         statusEmail === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
+                                        statusEmail === 'Aviso' ? 'bg-yellow-100 text-yellow-800' :
                                         'bg-gray-100 text-gray-800'
                                     }">
                                         ${statusEmail}

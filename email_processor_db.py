@@ -138,17 +138,17 @@ class EmailProcessor:
             with sqlite3.connect(self.db_name) as conn:
                 cursor = conn.cursor()
                 
-                # Verificar se e-mail já existe
+                # Processar data e hora ANTES da verificação de duplicidade
+                date_obj, time_str = self._parse_email_datetime(email_data["date"])
+                
+                # Verificar se e-mail já existe (subject, date, sent_time)
                 cursor.execute('''
                     SELECT id FROM emails 
-                    WHERE subject = ? AND date = ?
-                ''', (email_data["subject"], email_data["date"]))
+                    WHERE subject = ? AND date = ? AND sent_time = ?
+                ''', (email_data["subject"], date_obj.strftime('%Y-%m-%d'), time_str))
                 
                 if cursor.fetchone():
                     return None
-                
-                # Processar data e hora
-                date_obj, time_str = self._parse_email_datetime(email_data["date"])
                 
                 cursor.execute('''
                     INSERT INTO emails (subject, date, sent_time)

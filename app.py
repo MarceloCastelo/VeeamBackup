@@ -173,6 +173,17 @@ def get_all_backup_jobs():
     jobs = email_api.get_all_backup_jobs()
     return jsonify(jobs)
 
+@app.route('/api/backup-jobs/errors', methods=['GET'])
+def get_backup_jobs_with_errors():
+    # Retorna todos os backup_jobs com summary_error = 1
+    with sqlite3.connect(email_api.db_name) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM backup_jobs WHERE summary_error = 1")
+        rows = cursor.fetchall()
+        jobs = [dict(row) for row in rows]
+    return jsonify(jobs)
+
 @app.route('/api/backup-jobs/<int:job_id>', methods=['GET'])
 def get_backup_job(job_id):
     job = email_api.get_backup_job(job_id)
@@ -182,7 +193,19 @@ def get_backup_job(job_id):
 
 @app.route('/api/backup-jobs/by-email/<int:email_id>', methods=['GET'])
 def get_backup_jobs_by_email(email_id):
+    # Esta rota retorna TODOS os jobs relacionados ao email_id informado
     jobs = email_api.get_backup_jobs_by_email(email_id)
+    return jsonify(jobs)
+
+@app.route('/api/backup-jobs/errors/by-email/<int:email_id>', methods=['GET'])
+def get_backup_jobs_with_errors_by_email(email_id):
+    # Retorna todos os backup_jobs com summary_error = 1 para um email_id específico
+    with sqlite3.connect(email_api.db_name) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM backup_jobs WHERE summary_error = 1 AND email_id = ?", (email_id,))
+        rows = cursor.fetchall()
+        jobs = [dict(row) for row in rows]
     return jsonify(jobs)
 
 # 🖥️ Rotas para backup_vms

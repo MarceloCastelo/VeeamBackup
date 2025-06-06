@@ -12,6 +12,7 @@ def run_scripts():
 schedule.every().day.at("07:00").do(run_scripts)
 
 if __name__ == "__main__":
+    run_scripts()  # Executa imediatamente ao iniciar
     while True:
         schedule.run_pending()
         time.sleep(60)

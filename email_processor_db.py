@@ -168,16 +168,20 @@ class EmailProcessor:
         # Buscar IDs de e-mails já processados
         with sqlite3.connect(self.db_name) as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT subject, date FROM emails')
-            processed = set((row[0], row[1]) for row in cursor.fetchall())
+            # Buscar subject, date, sent_time para evitar duplicidade corretamente
+            cursor.execute('SELECT subject, date, sent_time FROM emails')
+            processed = set((row[0], row[1], row[2]) for row in cursor.fetchall())
         for email_id in email_ids:
             status, data = mail.fetch(email_id, "(RFC822)")
             if status == "OK":
                 msg = email.message_from_bytes(data[0][1])
                 subject = self._decode_header(msg["Subject"])
                 date = msg["Date"]
-                # Evita processar e-mails já existentes
-                if (subject, date) in processed:
+                # Extrair date_obj e time_str para comparar corretamente
+                date_obj, time_str = self._parse_email_datetime(date)
+                date_str = date_obj.strftime('%Y-%m-%d')
+                # Evita processar e-mails já existentes (subject, date, sent_time)
+                if (subject, date_str, time_str) in processed:
                     continue
                 emails.append({
                     "subject": subject,
@@ -292,8 +296,8 @@ class EmailProcessor:
         Extrai todos os blocos de backup_job e suas VMs do corpo do e-mail.
         Retorna lista de tuplas: (job_info_dict, [vm_dicts])
         """
-        # Divide o corpo em blocos de jobs pelo padrão "Backup job:"
-        job_blocks = re.split(r'(?=Agent Backup job:|Backup job:)', body)
+        # Divide o corpo em blocos de jobs pelo padrão "Backup job:" ou "Agent Backup job:"
+        job_blocks = re.split(r'(?=(?:Agent )?Backup job:)', body)
         result = []
         for block in job_blocks:
             job_info = self._extract_job_info(block)
@@ -308,13 +312,11 @@ class EmailProcessor:
         m = re.search(r'(?:Agent )?Backup job:\s*(.+)', body)
         if m:
             job['job_name'] = m.group(1).strip()
-        # Criado por
         m = re.search(r'Created by ([^\\]+\\[^\s]+) at ([\d/]+ [\d:]+)', body)
         if m:
             job['created_by'] = m.group(1)
             job['created_at'] = m.group(2)
-        # Processed VMs
-        m = re.search(r'(\d+) of (\d+) VMs processed', body)
+        m = re.search(r'(\d+) of (\d+) (?:VMs|hosts) processed', body)
         if m:
             job['processed_vms'] = m.group(1)
             job['processed_vms_total'] = m.group(2)
@@ -378,7 +380,8 @@ class EmailProcessor:
 
     def _extract_vm_details(self, body: str) -> list:
         """Extrai detalhes das VMs do corpo do e-mail"""
-        m = re.search(r'Details\s*\*Name\*.*?\*Details\*\n(.+?)(?=(?:Agent )?Backup job:|$)', body, re.DOTALL)
+        # Ajuste: só pega a seção Details até o próximo job ou fim do texto
+        m = re.search(r'Details\s*\*Name\*.*?\*Details\*\n(.+?)(?=(?:Agent )?Backup job:|Backup job:|$)', body, re.DOTALL)
         if not m:
             return []
         lines = m.group(1).strip().split('\n')
@@ -388,7 +391,6 @@ class EmailProcessor:
             # PRINTDEALER_ML-PG Success 19:00:43 19:21:40 100 GB 29,5 GB 13,3 GB 0:20:56
             parts = re.split(r'\s{2,}|\t| (?=\d{2}:\d{2}:\d{2})', line.strip())
             if len(parts) < 9:
-                # Tentar split por espaço simples se não funcionar
                 parts = line.strip().split()
             if len(parts) >= 9:
                 vms.append({

@@ -196,13 +196,13 @@ class EmailProcessor:
         if table_data:
             self._store_email_data(email_id, table_data, formatted_date)
 
-        # Extrair e armazenar dados do job e das VMs
-        job_info = self._extract_job_info(email_data["body"])
-        if job_info:
-            job_id = self._store_job_info(email_id, job_info)
-            vm_list = self._extract_vm_details(email_data["body"])
-            if vm_list:
-                self._store_vm_details(job_id, vm_list)
+        # Extrair e armazenar dados de múltiplos jobs e VMs
+        jobs_info = self._extract_jobs_info(email_data["body"])
+        if jobs_info:
+            for job_info, vm_list in jobs_info:
+                job_id = self._store_job_info(email_id, job_info)
+                if vm_list:
+                    self._store_vm_details(job_id, vm_list)
 
         self._mark_as_processed(email_id)
         print(f"✅ E-mail {index} processado. {len(table_data) if table_data else 0} registros.")
@@ -287,12 +287,25 @@ class EmailProcessor:
                     return part.get_payload(decode=True).decode()
         return msg.get_payload(decode=True).decode()
 
+    def _extract_jobs_info(self, body: str) -> list:
+        """
+        Extrai todos os blocos de backup_job e suas VMs do corpo do e-mail.
+        Retorna lista de tuplas: (job_info_dict, [vm_dicts])
+        """
+        # Divide o corpo em blocos de jobs pelo padrão "Backup job:"
+        job_blocks = re.split(r'(?=Agent Backup job:|Backup job:)', body)
+        result = []
+        for block in job_blocks:
+            job_info = self._extract_job_info(block)
+            if job_info:
+                vm_list = self._extract_vm_details(block)
+                result.append((job_info, vm_list))
+        return result
+
     def _extract_job_info(self, body: str) -> dict:
         """Extrai informações do job do corpo do e-mail"""
-        # Regex para capturar nome do job, criado por, data/hora, resumo, etc.
         job = {}
-        # Nome do job
-        m = re.search(r'Backup job:\s*(.+)', body)
+        m = re.search(r'(?:Agent )?Backup job:\s*(.+)', body)
         if m:
             job['job_name'] = m.group(1).strip()
         # Criado por
@@ -365,8 +378,7 @@ class EmailProcessor:
 
     def _extract_vm_details(self, body: str) -> list:
         """Extrai detalhes das VMs do corpo do e-mail"""
-        # Encontrar a seção Details
-        m = re.search(r'Details\s*\*Name\*.*?\*Details\*\n(.+)', body, re.DOTALL)
+        m = re.search(r'Details\s*\*Name\*.*?\*Details\*\n(.+?)(?=(?:Agent )?Backup job:|$)', body, re.DOTALL)
         if not m:
             return []
         lines = m.group(1).strip().split('\n')

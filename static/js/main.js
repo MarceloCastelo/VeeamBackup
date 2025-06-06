@@ -236,86 +236,86 @@
                     <div class="bg-gray-50 p-4 rounded-lg mb-4">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <p class="text-sm text-gray-500">Job</p>
+                                <p class="text-sm text-gray-500">Nome do Job</p>
                                 <p class="font-medium">${job.job_name || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Criado por</p>
+                                <p class="text-sm text-gray-500">Usuário que Criou</p>
                                 <p class="font-medium">${job.created_by || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Criado em</p>
+                                <p class="text-sm text-gray-500">Data de Criação</p>
                                 <p class="font-medium">${job.created_at || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">VMs processadas</p>
+                                <p class="text-sm text-gray-500">VMs Processadas</p>
                                 <p class="font-medium">${job.processed_vms || '-'} de ${job.processed_vms_total || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Success</p>
+                                <p class="text-sm text-gray-500">Backups com Sucesso</p>
                                 <p class="font-medium">${job.summary_success || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Warning</p>
+                                <p class="text-sm text-gray-500">Backups com Aviso</p>
                                 <p class="font-medium">${job.summary_warning || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Error</p>
+                                <p class="text-sm text-gray-500">Backups com Erro</p>
                                 <p class="font-medium">${job.summary_error || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Início</p>
+                                <p class="text-sm text-gray-500">Início do Job</p>
                                 <p class="font-medium">${job.start_time || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Fim</p>
+                                <p class="text-sm text-gray-500">Fim do Job</p>
                                 <p class="font-medium">${job.end_time || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Duração</p>
+                                <p class="text-sm text-gray-500">Duração Total</p>
                                 <p class="font-medium">${job.duration || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Total Size</p>
+                                <p class="text-sm text-gray-500">Tamanho Total do Backup</p>
                                 <p class="font-medium">${job.total_size || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Backup Size</p>
+                                <p class="text-sm text-gray-500">Tamanho do Backup Gerado</p>
                                 <p class="font-medium">${job.backup_size || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Data Read</p>
+                                <p class="text-sm text-gray-500">Dados Lidos</p>
                                 <p class="font-medium">${job.data_read || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Dedupe</p>
+                                <p class="text-sm text-gray-500">Deduplicação</p>
                                 <p class="font-medium">${job.dedupe || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Transferred</p>
+                                <p class="text-sm text-gray-500">Dados Transferidos</p>
                                 <p class="font-medium">${job.transferred || '-'}</p>
                             </div>
                             <div>
-                                <p class="text-sm text-gray-500">Compression</p>
+                                <p class="text-sm text-gray-500">Compressão</p>
                                 <p class="font-medium">${job.compression || '-'}</p>
                             </div>
                         </div>
                     </div>
-                    <h4 class="text-lg font-semibold mb-2">VMs do Job</h4>
+                    <h4 class="text-lg font-semibold mb-2">Máquinas Virtuais (VMs) do Job</h4>
                     ${vms.length > 0 ? `
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Início</th>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fim</th>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tamanho</th>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Lido</th>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Transferido</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nome da VM</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status do Backup</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Início do Backup</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fim do Backup</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tamanho do Backup</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dados Lidos</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dados Transferidos</th>
                                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duração</th>
-                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Detalhes</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Detalhes Adicionais</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -441,7 +441,7 @@
 
             // Agrupar por status
             const groupedByStatus = backupJobs.reduce((acc, item) => {
-                const status = item.status ? (item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase()) : 'Máquinas virtuais';
+                const status = item.status ? (item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase()) : 'Total de dispositivos';
                 if (!acc[status]) {
                     acc[status] = [];
                 }

@@ -43,18 +43,6 @@ class EmailProcessor:
                 cursor.execute('ALTER TABLE emails ADD COLUMN sent_time TEXT')
                 print("✅ Coluna sent_time adicionada à tabela emails")
             
-            # Tabela de dados extraídos
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS email_data (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    email_id INTEGER,
-                    host TEXT,
-                    ip TEXT,
-                    status TEXT,
-                    date TEXT,
-                    FOREIGN KEY (email_id) REFERENCES emails (id)
-                )
-            ''')
             # Nova tabela para informações do job
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS backup_jobs (
@@ -118,18 +106,6 @@ class EmailProcessor:
                     compression TEXT,
                     warnings TEXT,
                     FOREIGN KEY (email_id) REFERENCES emails (id)
-                )
-            ''')
-            # Nova tabela para detalhes dos catálogos de configuração
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS config_catalogs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    config_backup_id INTEGER,
-                    catalog_name TEXT,
-                    items INTEGER,
-                    size TEXT,
-                    packed TEXT,
-                    FOREIGN KEY (config_backup_id) REFERENCES config_backups (id)
                 )
             ''')
             conn.commit()
@@ -231,11 +207,6 @@ class EmailProcessor:
         date_obj, time_str = self._parse_email_datetime(email_data["date"])
         formatted_date = date_obj.strftime('%Y-%m-%d')
 
-        # Extrair e armazenar dados tabulares antigos
-        table_data = self._extract_table_data(email_data["body"])
-        if table_data:
-            self._store_email_data(email_id, table_data, formatted_date)
-
         # Extrair e armazenar dados de múltiplos jobs e VMs
         jobs_info = self._extract_jobs_info(email_data["body"])
         if jobs_info:
@@ -245,7 +216,7 @@ class EmailProcessor:
                     self._store_vm_details(job_id, vm_list)
 
         self._mark_as_processed(email_id)
-        print(f"✅ E-mail {index} processado. {len(table_data) if table_data else 0} registros.")
+        print(f"✅ E-mail {index} processado.")
     
     def _parse_email_datetime(self, date_str: str) -> Tuple[datetime, str]:
         """Extrai data e hora do cabeçalho do e-mail"""
@@ -256,20 +227,6 @@ class EmailProcessor:
             now = datetime.now()
             return now, now.strftime('%H:%M:%S')
     
-    def _store_email_data(self, email_id: int, table_data: List[List[str]], date: str):
-        """Armazena dados extraídos no banco de dados"""
-        try:
-            with sqlite3.connect(self.db_name) as conn:
-                cursor = conn.cursor()
-                for row in table_data:
-                    cursor.execute('''
-                        INSERT INTO email_data (email_id, host, ip, status, date)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (email_id, row[0], row[1], row[2], date))
-                conn.commit()
-        except Exception as e:
-            print(f"❌ Erro ao armazenar dados: {e}")
-    
     def _mark_as_processed(self, email_id: int):
         """Marca e-mail como processado"""
         try:
@@ -278,14 +235,6 @@ class EmailProcessor:
                 conn.commit()
         except Exception as e:
             print(f"❌ Erro ao marcar e-mail: {e}")
-    
-    def _extract_table_data(self, body: str) -> List[List[str]]:
-        """Extrai dados tabulares usando regex"""
-        pattern = re.compile(
-            r'^([^\s]+)\s+(\d+\.\d+\.\d+\.\d+)\s+(Success|Warning|Error)',
-            re.MULTILINE
-        )
-        return [list(match.groups()) for match in pattern.finditer(body)]
     
     def get_processed_emails(self) -> List[Tuple]:
         """Retorna e-mails processados ordenados por data/hora"""
@@ -297,17 +246,6 @@ class EmailProcessor:
                 WHERE is_processed = 1
                 ORDER BY date DESC, sent_time DESC
             ''')
-            return cursor.fetchall()
-    
-    def get_email_data(self, email_id: int) -> List[Tuple]:
-        """Retorna dados de um e-mail específico"""
-        with sqlite3.connect(self.db_name) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT host, ip, status, date 
-                FROM email_data 
-                WHERE email_id = ?
-            ''', (email_id,))
             return cursor.fetchall()
     
     @staticmethod
@@ -485,9 +423,7 @@ class EmailProcessor:
         """Processa e armazena e-mail de backup de configuração"""
         config_info = self._extract_config_backup_info(email_data["body"])
         if config_info:
-            config_id = self._store_config_backup(email_id, config_info)
-            if config_info.get("catalogs"):
-                self._store_config_catalogs(config_id, config_info["catalogs"])
+            self._store_config_backup(email_id, config_info)
         self._mark_as_processed(email_id)
         print(f"✅ E-mail {index} (config backup) processado.")
 
@@ -534,23 +470,6 @@ class EmailProcessor:
         for warn in re.findall(r'Warning[^\n]*\n(.+?)(?=\n\d{2}/\d{2}/\d{4}|\nEnd time|\nDuration|\nCompression|$)', body, re.DOTALL):
             warnings.append(warn.strip().replace('\n', ' '))
         info["warnings"] = " | ".join(warnings) if warnings else None
-        # Catálogos
-        catalogs = []
-        m = re.search(r'Details\s*Catalog Items Size Packed\n(.+)', body, re.DOTALL)
-        if m:
-            lines = m.group(1).strip().split('\n')
-            for line in lines:
-                parts = re.split(r'\s{2,}|\t', line.strip())
-                if len(parts) < 4:
-                    parts = line.strip().split()
-                if len(parts) >= 4:
-                    catalogs.append({
-                        "catalog_name": parts[0] + (f" {parts[1]}" if not parts[1].replace('.', '', 1).isdigit() else ""),
-                        "items": int(parts[1]) if parts[1].replace('.', '', 1).isdigit() else int(parts[2]),
-                        "size": parts[2] if parts[1].replace('.', '', 1).isdigit() else parts[3],
-                        "packed": parts[3] if parts[1].replace('.', '', 1).isdigit() else parts[4]
-                    })
-        info["catalogs"] = catalogs
         return info if info.get("server") else None
 
     def _store_config_backup(self, email_id: int, info: dict) -> int:
@@ -581,24 +500,6 @@ class EmailProcessor:
             conn.commit()
             return config_id
 
-    def _store_config_catalogs(self, config_id: int, catalogs: list):
-        """Armazena detalhes dos catálogos de configuração"""
-        with sqlite3.connect(self.db_name) as conn:
-            cursor = conn.cursor()
-            for cat in catalogs:
-                cursor.execute('''
-                    INSERT INTO config_catalogs (
-                        config_backup_id, catalog_name, items, size, packed
-                    ) VALUES (?, ?, ?, ?, ?)
-                ''', (
-                    config_id,
-                    cat.get("catalog_name"),
-                    cat.get("items"),
-                    cat.get("size"),
-                    cat.get("packed")
-                ))
-            conn.commit()
-
 if __name__ == "__main__":
     # Configuração
     processor = EmailProcessor(
@@ -613,7 +514,3 @@ if __name__ == "__main__":
         email_id, subject, date, time_ = email
         print(f"\n📩 ID: {email_id} | {date} {time_}")
         print(f"📌 Assunto: {subject[:60]}...")
-        data = processor.get_email_data(email_id)
-        print(f"📊 Dados ({len(data)} hosts):")
-        for host, ip, status, _ in data[:3]:  # Mostrar apenas 3 itens
-            print(f"  - {host}: {status} ({ip})")

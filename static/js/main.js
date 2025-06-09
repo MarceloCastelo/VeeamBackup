@@ -49,6 +49,16 @@ function formatDate(dateString) {
     return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR').slice(0, 5);
 }
 function formatSimpleDate(dateString) {
+    // Corrige possível diferença de fuso horário ao criar o objeto Date
+    // Usa apenas a parte yyyy-mm-dd para evitar conversão para UTC
+    if (!dateString) return '-';
+    // Extrai apenas a data (sem hora)
+    const onlyDate = dateString.split('T')[0].split(' ')[0];
+    const [year, month, day] = onlyDate.split('-');
+    if (year && month && day) {
+        return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    }
+    // fallback para Date normal se não for formato esperado
     const date = new Date(dateString);
     return date.toLocaleDateString('pt-BR');
 }
@@ -151,19 +161,45 @@ function renderBackupSummaryFilter() {
                     const content = document.getElementById('info-modal-content');
                     if (content) {
                         content.innerHTML = `
-                            <div class="mb-4">
-                                <h4 class="font-semibold text-gray-800 mb-1">📌 O que é o Retry?</h4>
-                                <p class="text-gray-700 text-sm">
-                                    O Retry ♻️ é um recurso inteligente do Veeam Backup & Replication que realiza uma nova tentativa automática 🚀 quando um backup falha. Em vez de exigir intervenção manual, o Veeam detecta a falha e reprocessa o job 🔄, aumentando as chances de sucesso. Ideal para resolver problemas temporários (como instabilidade de rede ou recursos insuficientes no storage).
-                                </p>
-                            </div>
-                            <div>
-                                <h4 class="font-semibold text-gray-800 mb-1">📌 O que é o (Full)?</h4>
-                                <p class="text-gray-700 text-sm">
-                                    O (Full) 📂 é um ponto de backup completo que armazena todas as máquinas virtuais (VMs) de um job, sem dependências de backups anteriores. Diferente de incrementais/diferenciais, ele contém todos os dados 💾 necessários para uma restauração independente. É a "base segura" 🛡️ da cadeia de backups, garantindo recuperação consistente em cenários críticos.
-                                    <br><br>
-                                    (Dica: "Full" consome mais espaço, mas é essencial para estratégias GFS!)
-                                </p>
+                            <div class="flex flex-col items-center justify-center p-0">
+                                <div class="w-full bg-green-50 border-l-4 border-green-400 rounded-lg p-4 mb-4 shadow-sm">
+                                    <h4 class="font-semibold text-green-800 mb-1 flex items-center gap-1">
+                                        <i class="fa-solid fa-bullseye text-green-500"></i> Qual é o objetivo deste projeto?
+                                    </h4>
+                                    <p class="text-gray-700 text-sm mb-2">
+                                        Este projeto tem como missão monitorar automaticamente os backups do Veeam 📊, trazendo mais eficiência e visibilidade para o processo. Como? Através de um sistema inteligente que:
+                                    </p>
+                                    <ul class="text-gray-700 text-sm list-disc pl-5 mb-2">
+                                        <li><b>📧 Lê e-mails automáticos do Veeam</b> – Captura alertas e logs de sucesso/falha diretamente da sua caixa de entrada.</li>
+                                        <li><b>💾 Armazena os dados em um banco de dados</b> – Organiza as informações para análise histórica e rápida consulta.</li>
+                                        <li><b>📊 Gera um dashboard intuitivo</b> – Exibe status, tendências e métricas, facilitando a tomada de decisão 🚀.</li>
+                                    </ul>
+                                    <div class="mt-2">
+                                        <span class="font-semibold text-green-700">🎯 Benefícios:</span>
+                                        <ul class="text-gray-700 text-sm list-disc pl-5 mt-1">
+                                            <li>✔️ Redução de falhas não detectadas</li>
+                                            <li>✔️ Relatórios centralizados e acessíveis</li>
+                                            <li>✔️ Histórico de backups para auditoria</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="w-full bg-blue-50 border-l-4 border-blue-400 rounded-lg p-4 mb-4 shadow-sm">
+                                    <h4 class="font-semibold text-blue-800 mb-1 flex items-center gap-1"><i class="fa-solid fa-rotate-right text-blue-500"></i> O que é o Retry?</h4>
+                                    <p class="text-gray-700 text-sm">
+                                        O <b>Retry</b> ♻️ é um recurso inteligente do Veeam Backup & Replication que realiza uma nova tentativa automática 🚀 quando um backup falha.<br>
+                                        Em vez de exigir intervenção manual, o Veeam detecta a falha e reprocessa o job 🔄, aumentando as chances de sucesso.<br>
+                                        <span class="text-blue-700">Ideal para resolver problemas temporários</span> (como instabilidade de rede ou recursos insuficientes no storage).
+                                    </p>
+                                </div>
+                                <div class="w-full bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-4 shadow-sm">
+                                    <h4 class="font-semibold text-yellow-800 mb-1 flex items-center gap-1"><i class="fa-solid fa-database text-yellow-500"></i> O que é o (Full)?</h4>
+                                    <p class="text-gray-700 text-sm">
+                                        O <b>(Full)</b> 📂 é um ponto de backup completo que armazena todas as máquinas virtuais (VMs) de um job, sem dependências de backups anteriores.<br>
+                                        Diferente de incrementais/diferenciais, ele contém <b>todos os dados 💾 necessários para uma restauração independente</b>.<br>
+                                        É a <span class="text-yellow-700 font-semibold">"base segura"</span> 🛡️ da cadeia de backups, garantindo recuperação consistente em cenários críticos.<br>
+                                        <span class="block mt-2 text-xs text-yellow-700 italic">(Dica: "Full" consome mais espaço, mas é essencial para estratégias GFS!)</span>
+                                    </p>
+                                </div>
                             </div>
                         `;
                     }
@@ -184,12 +220,21 @@ function renderBackupSummaryFilter() {
     if (!filterMenu) {
         filterMenu = document.createElement('div');
         filterMenu.id = 'backup-summary-filter-menu';
-        filterMenu.className = 'hidden absolute top-12 right-2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-80 z-30';
+        filterMenu.className = 'hidden absolute top-12 right-2 bg-white border border-gray-200 rounded-xl shadow-2xl p-0 w-96 z-30 transition-all duration-200';
         filterMenu.innerHTML = `
-            <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between px-4 pt-4 pb-2 border-b border-gray-100 rounded-t-xl bg-gradient-to-r from-blue-50 to-white">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-blue-600 text-lg"></i>
+                    <span class="font-semibold text-gray-800 text-base">Filtros Avançados</span>
+                </div>
+                <button id="close-backup-summary-filter" class="text-gray-400 hover:text-red-500 text-xl font-bold focus:outline-none transition">
+                    &times;
+                </button>
+            </div>
+            <div class="flex flex-col gap-3 px-4 py-4">
                 <div class="flex flex-col">
-                    <label for="backup-summary-status" class="text-[11px] text-gray-600 mb-0.5">Status</label>
-                    <select id="backup-summary-status" class="border border-gray-300 rounded px-2 py-1 bg-white shadow-sm text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all h-7">
+                    <label for="backup-summary-status" class="text-[11px] text-gray-600 mb-1 font-medium">Status</label>
+                    <select id="backup-summary-status" class="border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all h-9">
                         <option value="">Todos</option>
                         <option value="success">Sucesso</option>
                         <option value="warning">Aviso</option>
@@ -197,27 +242,34 @@ function renderBackupSummaryFilter() {
                     </select>
                 </div>
                 <div class="flex flex-col">
-                    <label for="backup-summary-search" class="text-[11px] text-gray-600 mb-0.5">Nome do dispositivo</label>
-                    <input type="text" id="backup-summary-search" placeholder="Filtrar por nome" class="border border-gray-300 rounded px-2 py-1 bg-white shadow-sm text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all h-7" />
+                    <label for="backup-summary-search" class="text-[11px] text-gray-600 mb-1 font-medium">Nome do dispositivo</label>
+                    <input type="text" id="backup-summary-search" placeholder="Filtrar por nome" class="border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all h-9" />
                 </div>
-                <div class="flex flex-col">
-                    <label for="backup-summary-date-start" class="text-[11px] text-gray-600 mb-0.5">Data inicial</label>
-                    <input type="date" id="backup-summary-date-start" class="border border-gray-300 rounded px-2 py-1 bg-white shadow-sm text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all h-7" />
+                <div class="flex flex-row gap-3">
+                    <div class="flex flex-col flex-1">
+                        <label for="backup-summary-date-start" class="text-[11px] text-gray-600 mb-1 font-medium">Data inicial</label>
+                        <input type="date" id="backup-summary-date-start" class="border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all h-9" />
+                    </div>
+                    <div class="flex flex-col flex-1">
+                        <label for="backup-summary-date-end" class="text-[11px] text-gray-600 mb-1 font-medium">Data final</label>
+                        <input type="date" id="backup-summary-date-end" class="border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all h-9" />
+                    </div>
                 </div>
-                <div class="flex flex-col">
-                    <label for="backup-summary-date-end" class="text-[11px] text-gray-600 mb-0.5">Data final</label>
-                    <input type="date" id="backup-summary-date-end" class="border border-gray-300 rounded px-2 py-1 bg-white shadow-sm text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all h-7" />
-                </div>
-                <div class="flex flex-row gap-2 mt-2">
-                    <button id="backup-summary-clear" type="button" class="rounded px-2 py-1 bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition-all text-xs h-7 min-w-[48px] flex-1">
-                        Limpar
+                <div class="flex flex-col gap-2 mt-2">
+                    <button id="backup-summary-clear" type="button" class="rounded-lg px-3 py-2 bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition-all text-sm h-9 w-full flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-broom"></i> Limpar
                     </button>
-                    <span id="pdf-btn-placeholder" class="flex-1"></span>
+                    <span id="pdf-btn-placeholder" class="w-full"></span>
                 </div>
             </div>
         `;
-        // Adiciona o menu ao container pai da tabela
         tableContainer.parentNode.appendChild(filterMenu);
+
+        // Botão de fechar do modal de filtro
+        filterMenu.querySelector('#close-backup-summary-filter').onclick = (e) => {
+            filterMenu.classList.add('hidden');
+            e.stopPropagation();
+        };
     }
 
     // Eventos para abrir/fechar o menu
@@ -240,6 +292,17 @@ function renderBackupSummaryFilter() {
         document.getElementById('backup-summary-date-end').addEventListener('change', onBackupSummaryFilterChange);
         document.getElementById('backup-summary-clear').addEventListener('click', clearBackupSummaryFilters);
         filterMenu.dataset.listeners = '1';
+    }
+
+    // Adiciona o botão PDF no placeholder se ainda não existir
+    const pdfPlaceholder = filterMenu.querySelector('#pdf-btn-placeholder');
+    if (pdfPlaceholder && !pdfPlaceholder.querySelector('#export-backup-summary-pdf')) {
+        const pdfBtn = document.createElement('button');
+        pdfBtn.id = 'export-backup-summary-pdf';
+        pdfBtn.type = 'button';
+        pdfBtn.className = 'rounded-lg px-3 py-2 bg-red-600 text-white font-semibold shadow hover:bg-red-700 transition-all text-sm h-9 w-full flex items-center justify-center gap-2';
+        pdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i> PDF';
+        pdfPlaceholder.appendChild(pdfBtn);
     }
 }
 
@@ -397,13 +460,11 @@ function createPaginationControls(totalItems, currentPage, pageSize, onPageChang
     return container;
 }
 function addExportPdfButton(tableContainer, tables) {
-    // Evita múltiplos botões
-    if (document.getElementById('export-backup-summary-pdf')) return;
-
-    const btn = document.createElement('button');
-    btn.id = 'export-backup-summary-pdf';
-    btn.className = 'px-2 py-1 rounded bg-red-600 text-white font-semibold shadow hover:bg-red-700 transition-all text-xs h-7 min-w-[70px] flex items-center justify-center';
-    btn.innerHTML = '<i class="fas fa-file-pdf mr-1"></i>PDF';
+    // Agora o botão é criado junto com o filtro, só precisa adicionar o evento aqui
+    const btn = document.getElementById('export-backup-summary-pdf');
+    if (!btn) return;
+    if (btn.dataset.listenerAttached) return;
+    btn.dataset.listenerAttached = '1';
 
     btn.onclick = async () => {
         // Carrega jsPDF e autoTable dinamicamente se não existir
@@ -517,36 +578,46 @@ function updateBackupSummaryTable(backupJobs) {
     // Ordena todos os jobs por data (mais recente para mais antiga)
     const sortedJobs = [...backupJobs].sort((a, b) => {
         let aDate = '', bDate = '';
+        let aTime = '', bTime = '';
         if (a.email_id && Array.isArray(filteredEmails)) {
             const emailA = filteredEmails.find(e => e.id === a.email_id);
             aDate = emailA && emailA.date ? emailA.date : '';
+            // Hora: tenta pegar start_time, senão sent_time, senão vazio
+            aTime = a.start_time || (emailA && emailA.sent_time ? emailA.sent_time : '');
         }
         if (b.email_id && Array.isArray(filteredEmails)) {
             const emailB = filteredEmails.find(e => e.id === b.email_id);
             bDate = emailB && emailB.date ? emailB.date : '';
+            bTime = b.start_time || (emailB && emailB.sent_time ? emailB.sent_time : '');
         }
         // Se não houver data, mantém no final
         if (!aDate && !bDate) return 0;
         if (!aDate) return 1;
         if (!bDate) return -1;
-        // Ordem decrescente (mais recente primeiro)
-        return bDate.localeCompare(aDate);
+        // Compara data primeiro
+        if (bDate !== aDate) return bDate.localeCompare(aDate);
+        // Se datas iguais, compara hora (decrescente)
+        if (aTime && bTime) {
+            // Normaliza para HH:MM:SS
+            const normA = aTime.split(' ')[1] || aTime.split('T')[1] || aTime;
+            const normB = bTime.split(' ')[1] || bTime.split('T')[1] || bTime;
+            return (normB || '').localeCompare(normA || '');
+        }
+        return 0;
     });
-
-    // Cabeçalho da seção única
-    // Removido o título "Resumo dos Backups (N)"
-    // const sectionHeader = document.createElement('div');
-    // sectionHeader.className = 'font-semibold text-gray-800 mt-4';
-    // sectionHeader.textContent = `Resumo dos Backups (${sortedJobs.length})`;
-    // tableContainer.appendChild(sectionHeader);
 
     // Paginação
     const PAGE_SIZE = 10;
+    // Corrige: não reseta o objeto de páginas, apenas inicializa se não existir
     if (!window._backupSummaryTablePages) window._backupSummaryTablePages = {};
-    if (!window._backupSummaryTablePages['ALL']) window._backupSummaryTablePages['ALL'] = 1;
-    const currentPage = window._backupSummaryTablePages['ALL'] || 1;
+    // Mantém a página atual se já existir, senão começa em 1
+    if (typeof window._backupSummaryTablePages['ALL'] !== 'number') window._backupSummaryTablePages['ALL'] = 1;
+    const currentPage = window._backupSummaryTablePages['ALL'];
     const totalPages = Math.ceil(sortedJobs.length / PAGE_SIZE);
-    const paginatedItems = sortedJobs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    // Garante que currentPage nunca ultrapasse o total de páginas
+    const safePage = Math.max(1, Math.min(currentPage, totalPages || 1));
+    window._backupSummaryTablePages['ALL'] = safePage;
+    const paginatedItems = sortedJobs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
     // Tabela única
     const table = document.createElement('table');
@@ -554,12 +625,24 @@ function updateBackupSummaryTable(backupJobs) {
     table.innerHTML = `
         <thead class="bg-gray-50">
             <tr>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Dispositivo</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Data</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Hora</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Status</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Total Size</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Duração</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-desktop mr-1 text-gray-700"></i> Dispositivo
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-calendar-day mr-1 text-gray-700"></i> Data
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-clock mr-1 text-gray-700"></i> Hora
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-circle-check mr-1 text-gray-700"></i> Status
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-database mr-1 text-gray-700"></i> Total Size
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-hourglass-half mr-1 text-gray-700"></i> Duração
+                </th>
             </tr>
         </thead>
         <tbody>
@@ -632,7 +715,7 @@ function updateBackupSummaryTable(backupJobs) {
     if (sortedJobs.length > PAGE_SIZE) {
         const pagination = createPaginationControls(
             sortedJobs.length,
-            currentPage,
+            safePage,
             PAGE_SIZE,
             (newPage) => {
                 window._backupSummaryTablePages['ALL'] = newPage;
@@ -645,7 +728,6 @@ function updateBackupSummaryTable(backupJobs) {
     // Adiciona botão de exportação para PDF após a tabela única
     addExportPdfButton(tableContainer, [table]);
 }
-// Handler do filtro
 function onBackupSummaryFilterChange() {
     const search = document.getElementById('backup-summary-search')?.value || '';
     const status = document.getElementById('backup-summary-status')?.value || '';
@@ -670,27 +752,40 @@ function onBackupSummaryFilterChange() {
     // Todos os itens em uma única tabela, ordenados por data decrescente
     const sortedItems = [...filtered].sort((a, b) => {
         let aDate = '', bDate = '';
+        let aTime = '', bTime = '';
         if (a.email_id && Array.isArray(filteredEmails)) {
             const emailA = filteredEmails.find(e => e.id === a.email_id);
             aDate = emailA && emailA.date ? emailA.date : '';
+            aTime = a.start_time || (emailA && emailA.sent_time ? emailA.sent_time : '');
         }
         if (b.email_id && Array.isArray(filteredEmails)) {
             const emailB = filteredEmails.find(e => e.id === b.email_id);
             bDate = emailB && emailB.date ? emailB.date : '';
+            bTime = b.start_time || (emailB && emailB.sent_time ? emailB.sent_time : '');
         }
         if (!aDate && !bDate) return 0;
         if (!aDate) return 1;
         if (!bDate) return -1;
-        return bDate.localeCompare(aDate);
+        if (bDate !== aDate) return bDate.localeCompare(aDate);
+        if (aTime && bTime) {
+            const normA = aTime.split(' ')[1] || aTime.split('T')[1] || aTime;
+            const normB = bTime.split(' ')[1] || bTime.split('T')[1] || bTime;
+            return (normB || '').localeCompare(normA || '');
+        }
+        return 0;
     });
 
     // Paginação
     const PAGE_SIZE = 10;
     if (!window._backupSummaryTablePages) window._backupSummaryTablePages = {};
-    if (!window._backupSummaryTablePages['FILTERED']) window._backupSummaryTablePages['FILTERED'] = 1;
-    const currentPage = window._backupSummaryTablePages['FILTERED'] || 1;
+    // Mantém a página atual se já existir, senão começa em 1
+    if (typeof window._backupSummaryTablePages['FILTERED'] !== 'number') window._backupSummaryTablePages['FILTERED'] = 1;
+    const currentPage = window._backupSummaryTablePages['FILTERED'];
     const totalPages = Math.ceil(sortedItems.length / PAGE_SIZE);
-    const paginatedItems = sortedItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    // Garante que currentPage nunca ultrapasse o total de páginas
+    const safePage = Math.max(1, Math.min(currentPage, totalPages || 1));
+    window._backupSummaryTablePages['FILTERED'] = safePage;
+    const paginatedItems = sortedItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
     // Tabela única para todos os itens filtrados
     const table = document.createElement('table');
@@ -698,12 +793,24 @@ function onBackupSummaryFilterChange() {
     table.innerHTML = `
         <thead class="bg-gray-50">
             <tr>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Dispositivo</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Data</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Hora</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Status</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Total Size</th>
-                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Duração</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-desktop mr-1 text-gray-700"></i> Dispositivo
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-calendar-day mr-1 text-gray-700"></i> Data
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-clock mr-1 text-gray-700"></i> Hora
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-circle-check mr-1 text-gray-700"></i> Status
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-database mr-1 text-gray-700"></i> Total Size
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">
+                    <i class="fa-solid fa-hourglass-half mr-1 text-gray-700"></i> Duração
+                </th>
             </tr>
         </thead>
         <tbody>
@@ -776,7 +883,7 @@ function onBackupSummaryFilterChange() {
     if (sortedItems.length > PAGE_SIZE) {
         const pagination = createPaginationControls(
             sortedItems.length,
-            currentPage,
+            safePage,
             PAGE_SIZE,
             (newPage) => {
                 window._backupSummaryTablePages['FILTERED'] = newPage;
@@ -954,11 +1061,11 @@ async function showBackupJobDetail(emailId, jobName) {
         if (config) {
             // Exibe detalhes do backup de configuração
             // Busca catálogos
-            let catalogs = [];
-            try {
-                const resp = await fetch(`/api/config-catalogs/by-config/${config.id}`);
-                catalogs = resp.ok ? await resp.json() : [];
-            } catch {}
+            // let catalogs = [];
+            // try {
+            //     const resp = await fetch(`/api/config-catalogs/by-config/${config.id}`);
+            //     catalogs = resp.ok ? await resp.json() : [];
+            // } catch {}
             backupJobDetailContent.innerHTML = `
                 <h4 class="text-lg font-semibold mb-2">Backup de Configuração: ${config.server}</h4>
                 <div class="bg-gray-50 p-4 rounded-lg mb-4">
@@ -1013,35 +1120,6 @@ async function showBackupJobDetail(emailId, jobName) {
                         </div>
                     </div>
                 </div>
-                <h4 class="text-lg font-semibold mb-2">Catálogos</h4>
-                ${catalogs.length > 0 ? `
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Catálogo</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Itens</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tamanho</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Compactado</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            ${catalogs.map(cat => `
-                            <tr>
-                                <td class="px-4 py-2">${cat.catalog_name}</td>
-                                <td class="px-4 py-2">${cat.items}</td>
-                                <td class="px-4 py-2">${cat.size}</td>
-                                <td class="px-4 py-2">${cat.packed}</td>
-                            </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                ` : `
-                <div class="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
-                    Nenhum catálogo encontrado para este backup de configuração
-                </div>
-                `}
             `;
             return;
         }

@@ -4,115 +4,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoramento Veeam</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-gray-100 font-sans">
-    <div class="min-h-screen">
-        <!-- Cabeçalho -->
-        <header class="bg-blue-600 text-white shadow-lg">
-            <div class="container mx-auto px-4 py-6">
-                <div class="flex justify-between items-center">
-                    <h1 class="text-2xl font-bold">
-                        <i class="fas fa-database mr-2"></i>Monitoramento dos Backups
-                    </h1>
-                    <div class="flex items-center space-x-4">
-                        <div id="current-date" class="text-sm bg-blue-700 px-3 py-1 rounded-full"></div>
-                        <button id="refresh-btn" class="bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded-full">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
-                    </div>
-                </div>
+<body class="bg-gray-50 font-sans text-gray-800 min-h-screen h-screen flex flex-col">
+    <div class="flex flex-col flex-1 min-h-0 h-full">
+        <!-- Cabeçalho minimalista -->
+        <header class="bg-white border-b border-gray-200 flex-shrink-0">
+            <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+                <h1 class="text-xl font-semibold flex items-center gap-2">
+                    <i class="fa-regular fa-hdd text-blue-600"></i>
+                    Monitoramento dos Backups
+                </h1>
+                
             </div>
         </header>
 
         <!-- Conteúdo Principal -->
-        <main class="container mx-auto px-4 py-6">
-            <!-- Estatísticas -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                <div class="bg-white rounded-lg shadow-md p-4">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Total de Backups</h3>
-                    <div class="flex items-center justify-between">
-                        <span id="total-emails" class="text-3xl font-bold text-blue-600">0</span>
-                        <i class="fas fa-database text-blue-400 text-4xl"></i>
-                    </div>
-                </div>
-                <div class="bg-white rounded-lg shadow-md p-4">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-2"> Backups Processados</h3>
-                    <div class="flex items-center justify-between">
-                        <span id="processed-emails" class="text-3xl font-bold text-green-600">0</span>
-                        <i class="fas fa-check-circle text-green-400 text-4xl"></i>
-                    </div>
-                </div>
-                <div class="bg-white rounded-lg shadow-md p-4">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Backups com Aviso</h3>
-                    <div class="flex items-center justify-between">
-                        <span id="pending-emails" class="text-3xl font-bold text-yellow-600">0</span>
-                        <i class="fas fa-exclamation-triangle text-yellow-400 text-4xl"></i>
-                    </div>
-                </div>
-                <!-- Adicionado bloco para erros -->
-                <div class="bg-white rounded-lg shadow-md p-4">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-2">Backups com Erro</h3>
-                    <div class="flex items-center justify-between">
-                        <span id="error-emails" class="text-3xl font-bold text-red-600">0</span>
-                        <i class="fas fa-times-circle text-red-400 text-4xl"></i>
-                    </div>
-                </div>
-            </div>
-
+        <main class="container mx-auto px-4 py-4 flex-1 min-h-0 flex flex-col">
             <!-- Resumo dos Backups -->
-            <div id="backup-summary-section" class="bg-white rounded-lg shadow-md p-4 mb-6">
-                <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-2 gap-2">
-                    <h2 class="text-xl font-semibold text-gray-800">Histórico dos Backups dos Dispositivos</h2>
-                    <!-- Filtro de data com design melhorado -->
-                    <div>
-                        <div class="relative">
-                            <input id="backup-summary-date" type="date"
-                                class="pl-10 pr-3 py-1 rounded-md border border-gray-300 bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                                style="min-width: 150px;"
-                            />
-                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                                <i class="fa-regular fa-calendar"></i>
-                            </span>
-                        </div>
+            <section id="backup-summary-section" class="bg-white rounded-xl border border-gray-100 p-4 flex-1 flex flex-col shadow-sm min-h-0">
+                
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-green-100 bg-green-50">
+                        <i class="fa-regular fa-circle-check text-green-500"></i>
+                        <span id="summary-success" class="font-semibold text-green-700">0</span>
+                        <span class="text-green-700 text-xs">Sucesso</span>
                     </div>
-                </div>
-                <div id="backup-summary-info" class="mb-2 text-gray-700 text-sm">
+                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-yellow-100 bg-yellow-50">
+                        <i class="fa-regular fa-bell text-yellow-500"></i>
+                        <span id="summary-warning" class="font-semibold text-yellow-700">0</span>
+                        <span class="text-yellow-700 text-xs">Aviso</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-red-100 bg-red-50">
+                        <i class="fa-regular fa-circle-xmark text-red-500"></i>
+                        <span id="summary-error" class="font-semibold text-red-700">0</span>
+                        <span class="text-red-700 text-xs">Falha</span>
+                    </div>
+                    <div id="backup-summary-info" class="mb-4 text-sm text-gray-500">
                     <!-- Texto informativo será preenchido via JS -->
                 </div>
-                <div class="flex flex-wrap gap-4 mb-4">
-                    <div class="flex items-center gap-2 bg-green-50 px-4 py-2 rounded">
-                        <i class="fas fa-check-circle text-green-500"></i>
-                        <span id="summary-success" class="font-bold text-green-700">0</span>
-                        <span class="text-green-700">Sucesso</span>
-                    </div>
-                    <div class="flex items-center gap-2 bg-yellow-50 px-4 py-2 rounded">
-                        <i class="fas fa-exclamation-triangle text-yellow-500"></i>
-                        <span id="summary-warning" class="font-bold text-yellow-700">0</span>
-                        <span class="text-yellow-700">Aviso</span>
-                    </div>
-                    <div class="flex items-center gap-2 bg-red-50 px-4 py-2 rounded">
-                        <i class="fas fa-times-circle text-red-500"></i>
-                        <span id="summary-error" class="font-bold text-red-700">0</span>
-                        <span class="text-red-700">Erro</span>
-                    </div>
+                
                 </div>
                 <!-- Tabela de dispositivos por status -->
-                <div id="backup-summary-table" class="overflow-x-auto">
+                <div id="backup-summary-table" class="overflow-auto flex-1 min-h-0">
                     <!-- Conteúdo preenchido via JS -->
                 </div>
-            </div>
+            </section>
         </main>
 
         <!-- Modal de Detalhes -->
-        <div id="email-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-xl font-semibold text-gray-800">Detalhes do E-mail</h3>
-                    <button id="close-modal" class="text-gray-500 hover:text-gray-700">
-                        <i class="fas fa-times"></i>
+        <div id="email-detail-modal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-xl shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-100">
+                <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold">Detalhes do E-mail</h3>
+                    <button id="close-modal" class="text-gray-400 hover:text-gray-600 p-1 rounded transition">
+                        <i class="fas fa-xmark"></i>
                     </button>
                 </div>
                 <div class="p-6">
@@ -122,14 +71,23 @@
                 </div>
             </div>
         </div>
-    </div>
-    <!-- Modal de Detalhes do backup_job -->
-    <div id="backup-job-detail-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 hidden">
-        <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 relative">
-            <button id="close-backup-job-modal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl sm:text-xl bg-white bg-opacity-80 rounded-full w-10 h-10 flex items-center justify-center z-10">&times;</button>
-            <div id="backup-job-detail-content"></div>
+
+        <!-- Modal de Detalhes do backup_job -->
+        <div id="backup-job-detail-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30 hidden">
+            <div class="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-4 border border-gray-100 relative">
+                <button id="close-backup-job-modal" class="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-xl bg-white bg-opacity-80 rounded-full w-8 h-8 flex items-center justify-center z-10 transition">
+                    <i class="fas fa-xmark"></i>
+                </button>
+                <div id="backup-job-detail-content"></div>
+            </div>
         </div>
     </div>
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-2 text-xs flex-shrink-0">
+        <div class="container mx-auto px-4 text-center text-gray-500">
+            &copy; 2024 Monitoramento Veeam.
+        </div>
+    </footer>
     <script src="/static/js/main.js"></script>
 </body>
 </html>

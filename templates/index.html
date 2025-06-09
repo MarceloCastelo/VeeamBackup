@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoramento Veeam</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="icon" type="image/png" href="/static/images/favicon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -81,6 +81,23 @@
                 <div id="backup-job-detail-content"></div>
             </div>
         </div>
+
+        <!-- Modal de Informações sobre o Backup -->
+        <div id="info-modal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-xl shadow-lg max-w-lg w-full max-h-[90vh] overflow-y-auto border border-gray-100">
+                <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold">Informações sobre o Backup</h3>
+                    <button id="close-info-modal" class="text-gray-400 hover:text-gray-600 p-1 rounded transition">
+                        <i class="fas fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div id="info-modal-content">
+                        <!-- Conteúdo será inserido posteriormente -->
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <!-- Footer -->
     <footer class="bg-white border-t border-gray-200 py-2 text-xs flex-shrink-0">
@@ -89,5 +106,14 @@
         </div>
     </footer>
     <script src="/static/js/main.js"></script>
+    <script>
+    // Modal de informações sobre o backup
+    document.getElementById('open-info-modal').onclick = function() {
+        document.getElementById('info-modal').classList.remove('hidden');
+    };
+    document.getElementById('close-info-modal').onclick = function() {
+        document.getElementById('info-modal').classList.add('hidden');
+    };
+    </script>
 </body>
 </html>

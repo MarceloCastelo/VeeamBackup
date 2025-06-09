@@ -118,12 +118,59 @@ function renderBackupSummaryFilter() {
     if (!filterMenuBtn) {
         filterMenuBtn = document.createElement('button');
         filterMenuBtn.id = 'backup-summary-filter-btn';
-        filterMenuBtn.className = 'absolute top-2 right-2 z-20 bg-white rounded-full p-2 shadow hover:bg-gray-100 transition';
+        filterMenuBtn.className = 'absolute top-2 right-12 z-20 bg-white rounded-full p-2 shadow hover:bg-gray-100 transition';
         filterMenuBtn.innerHTML = '<i class="fas fa-filter text-gray-600 text-lg"></i>';
         // Adiciona o botão ao container pai da tabela
         const parent = tableContainer.parentNode;
         parent.style.position = 'relative';
         parent.insertBefore(filterMenuBtn, tableContainer);
+
+        // Botão de informação ao lado do filtro
+        let infoBtn = document.getElementById('backup-summary-info-btn');
+        if (!infoBtn) {
+            infoBtn = document.createElement('button');
+            infoBtn.id = 'backup-summary-info-btn';
+            infoBtn.className = 'absolute top-2 right-2 z-20 bg-white rounded-full p-2 shadow hover:bg-blue-100 transition';
+            infoBtn.title = 'Informações sobre o backup';
+            infoBtn.innerHTML = '<i class="fa-solid fa-circle-info text-blue-600 text-lg"></i>';
+            parent.insertBefore(infoBtn, tableContainer);
+
+            // Evento para abrir o modal de informações
+            infoBtn.onclick = function(e) {
+                e.stopPropagation();
+                const modal = document.getElementById('info-modal');
+                if (modal) {
+                    // Preenche o conteúdo do modal com as informações fornecidas
+                    const content = document.getElementById('info-modal-content');
+                    if (content) {
+                        content.innerHTML = `
+                            <div class="mb-4">
+                                <h4 class="font-semibold text-gray-800 mb-1">📌 O que é o Retry?</h4>
+                                <p class="text-gray-700 text-sm">
+                                    O Retry ♻️ é um recurso inteligente do Veeam Backup & Replication que realiza uma nova tentativa automática 🚀 quando um backup falha. Em vez de exigir intervenção manual, o Veeam detecta a falha e reprocessa o job 🔄, aumentando as chances de sucesso. Ideal para resolver problemas temporários (como instabilidade de rede ou recursos insuficientes no storage).
+                                </p>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-800 mb-1">📌 O que é o (Full)?</h4>
+                                <p class="text-gray-700 text-sm">
+                                    O (Full) 📂 é um ponto de backup completo que armazena todas as máquinas virtuais (VMs) de um job, sem dependências de backups anteriores. Diferente de incrementais/diferenciais, ele contém todos os dados 💾 necessários para uma restauração independente. É a "base segura" 🛡️ da cadeia de backups, garantindo recuperação consistente em cenários críticos.
+                                    <br><br>
+                                    (Dica: "Full" consome mais espaço, mas é essencial para estratégias GFS!)
+                                </p>
+                            </div>
+                        `;
+                    }
+                    modal.classList.remove('hidden');
+                    // Adiciona o evento do botão de fechar toda vez que abrir
+                    const closeBtn = document.getElementById('close-info-modal');
+                    if (closeBtn) {
+                        closeBtn.onclick = function() {
+                            modal.classList.add('hidden');
+                        };
+                    }
+                }
+            };
+        }
     }
 
     // Cria o menu de filtros se não existir
@@ -431,7 +478,7 @@ function updateBackupSummaryTable(backupJobs) {
 
     // Agrupar por status
     const groupedByStatus = backupJobs.reduce((acc, item) => {
-        const status = item.status ? (item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase()) : 'Total de dispositivos';
+        const status = item.status ? (item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase()) : 'Total de tentativas de backup realizadas';
         if (!acc[status]) {
             acc[status] = [];
         }

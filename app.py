@@ -97,6 +97,35 @@ class EmailAPI:
             ORDER BY id DESC
         ''')
 
+    # 🔧 Tabela config_backups
+    def get_all_config_backups(self) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM config_backups
+            ORDER BY id DESC
+        ''')
+
+    def get_config_backup(self, config_id: int) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM config_backups WHERE id = ?
+        ''', (config_id,))
+
+    def get_config_backups_by_email(self, email_id: int) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM config_backups WHERE email_id = ?
+        ''', (email_id,))
+
+    # 🔧 Tabela config_catalogs
+    def get_catalogs_by_config(self, config_id: int) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM config_catalogs WHERE config_backup_id = ?
+        ''', (config_id,))
+
+    def get_all_config_catalogs(self) -> List[Dict]:
+        return self._execute_query('''
+            SELECT * FROM config_catalogs
+            ORDER BY id DESC
+        ''')
+
 
 # Inicializa a API
 email_api = EmailAPI(db_name="veeam_emails.db")
@@ -219,6 +248,35 @@ def get_vms_by_job(job_id):
     vms = email_api.get_vms_by_job(job_id)
     return jsonify(vms)
 
+
+# 🔧 Rotas para config_backups
+@app.route('/api/config-backups/', methods=['GET'])
+def get_all_config_backups():
+    backups = email_api.get_all_config_backups()
+    return jsonify(backups)
+
+@app.route('/api/config-backups/<int:config_id>', methods=['GET'])
+def get_config_backup(config_id):
+    backup = email_api.get_config_backup(config_id)
+    if not backup:
+        return jsonify({"error": "Config backup não encontrado"}), 404
+    return jsonify(backup[0])
+
+@app.route('/api/config-backups/by-email/<int:email_id>', methods=['GET'])
+def get_config_backups_by_email(email_id):
+    backups = email_api.get_config_backups_by_email(email_id)
+    return jsonify(backups)
+
+# 🔧 Rotas para config_catalogs
+@app.route('/api/config-catalogs/', methods=['GET'])
+def get_all_config_catalogs():
+    catalogs = email_api.get_all_config_catalogs()
+    return jsonify(catalogs)
+
+@app.route('/api/config-catalogs/by-config/<int:config_id>', methods=['GET'])
+def get_catalogs_by_config(config_id):
+    catalogs = email_api.get_catalogs_by_config(config_id)
+    return jsonify(catalogs)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

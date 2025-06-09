@@ -11,6 +11,7 @@ const statusChartCanvas = document.getElementById('status-chart');
 const summarySuccess = document.getElementById('summary-success');
 const summaryWarning = document.getElementById('summary-warning');
 const summaryError = document.getElementById('summary-error');
+const summaryTotal = document.getElementById('summary-total'); // Novo: card de total
 const backupSummaryDateInput = document.getElementById('backup-summary-date');
 let backupSummarySelectedDate = null;
 
@@ -77,17 +78,23 @@ async function fetchEmails() {
         const response = await fetch('/api/emails/');
         if (!response.ok) throw new Error('Erro ao carregar e-mails');
         allEmails = await response.json();
-        const needsBackupData = allEmails.some(email => !email.backup_data);
-        if (needsBackupData) {
-            await Promise.all(allEmails.map(async (email) => {
-                try {
-                    const resp = await fetch(`/api/email-data/by-email/${email.id}`);
-                    email.backup_data = resp.ok ? await resp.json() : [];
-                } catch {
-                    email.backup_data = [];
-                }
-            }));
-        }
+        // Carrega dados de backup_data (hosts) e config_backups para cada email
+        await Promise.all(allEmails.map(async (email) => {
+            try {
+                // Dados de hosts tradicionais
+                const resp = await fetch(`/api/email-data/by-email/${email.id}`);
+                email.backup_data = resp.ok ? await resp.json() : [];
+            } catch {
+                email.backup_data = [];
+            }
+            try {
+                // Dados de config_backups
+                const respConfig = await fetch(`/api/config-backups/by-email/${email.id}`);
+                email.config_backups = respConfig.ok ? await respConfig.json() : [];
+            } catch {
+                email.config_backups = [];
+            }
+        }));
         filteredEmails = [...allEmails];
         updateBackupSummary();
     } catch (error) {
@@ -301,9 +308,39 @@ function getFilteredEmailsBySummaryDate() {
 function updateBackupSummary() {
     const emailsForSummary = getFilteredEmailsBySummaryDate();
     let success = 0, warning = 0, error = 0;
-    const allJobs = emailsForSummary.flatMap(email => email.backup_jobs || []);
+    // Inclui jobs tradicionais e config_backups na tabela
+    const allJobs = emailsForSummary.flatMap(email => {
+        const jobs = email.backup_jobs || [];
+        // Adapta config_backups para o mesmo formato visual da tabela
+        const configJobs = (email.config_backups || []).map(cfg => ({
+            // Campos compatíveis com backup_jobs
+            job_name: `Configuração: ${cfg.server}`,
+            host: cfg.server,
+            status: cfg.status,
+            created_by: '-',
+            created_at: cfg.backup_date || '-',
+            processed_vms: cfg.catalogs_processed,
+            processed_vms_total: cfg.catalogs_processed,
+            summary_success: cfg.status === 'Success' ? 1 : 0,
+            summary_warning: cfg.status === 'Warning' ? 1 : 0,
+            summary_error: cfg.status === 'Error' ? 1 : 0,
+            start_time: cfg.start_time,
+            end_time: cfg.end_time,
+            duration: cfg.duration,
+            total_size: cfg.data_size,
+            backup_size: cfg.backup_size,
+            data_read: '-',
+            dedupe: '-',
+            transferred: '-',
+            compression: cfg.compression,
+            email_id: cfg.email_id,
+            config_backup_id: cfg.id, // Para detalhes
+            is_config_backup: true,
+            warnings: cfg.warnings
+        }));
+        return [...jobs, ...configJobs];
+    });
     allJobs.forEach(job => {
-        // Use apenas summary_error para erro
         if (job.summary_error == 1) {
             error++;
         } else if ((job.status && (job.status === 'Warning' || job.status === 'warning'))) {
@@ -328,6 +365,7 @@ function updateBackupSummary() {
     summarySuccess.textContent = success;
     summaryWarning.textContent = warning;
     summaryError.textContent = error;
+    if (summaryTotal) summaryTotal.textContent = allJobs.length; // Atualiza o card de total
 
     updateBackupSummaryTable(allJobs);
 }
@@ -476,138 +514,137 @@ function updateBackupSummaryTable(backupJobs) {
         return;
     }
 
-    // Agrupar por status
-    const groupedByStatus = backupJobs.reduce((acc, item) => {
-        const status = item.status ? (item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase()) : 'Total de tentativas de backup realizadas';
-        if (!acc[status]) {
-            acc[status] = [];
+    // Ordena todos os jobs por data (mais recente para mais antiga)
+    const sortedJobs = [...backupJobs].sort((a, b) => {
+        let aDate = '', bDate = '';
+        if (a.email_id && Array.isArray(filteredEmails)) {
+            const emailA = filteredEmails.find(e => e.id === a.email_id);
+            aDate = emailA && emailA.date ? emailA.date : '';
         }
-        acc[status].push(item);
-        return acc;
-    }, {});
-
-    // Ordenar chaves
-    const sortedStatusKeys = Object.keys(groupedByStatus).sort((a, b) => {
-        const order = ['Success', 'Warning', 'Error'];
-        return order.indexOf(a) - order.indexOf(b);
+        if (b.email_id && Array.isArray(filteredEmails)) {
+            const emailB = filteredEmails.find(e => e.id === b.email_id);
+            bDate = emailB && emailB.date ? emailB.date : '';
+        }
+        // Se não houver data, mantém no final
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        // Ordem decrescente (mais recente primeiro)
+        return bDate.localeCompare(aDate);
     });
 
-    // Controle de página por status
-    if (!window._backupSummaryTablePages) window._backupSummaryTablePages = {};
-    sortedStatusKeys.forEach(status => {
-        if (!window._backupSummaryTablePages[status]) window._backupSummaryTablePages[status] = 1;
-    });
+    // Cabeçalho da seção única
+    // Removido o título "Resumo dos Backups (N)"
+    // const sectionHeader = document.createElement('div');
+    // sectionHeader.className = 'font-semibold text-gray-800 mt-4';
+    // sectionHeader.textContent = `Resumo dos Backups (${sortedJobs.length})`;
+    // tableContainer.appendChild(sectionHeader);
 
+    // Paginação
     const PAGE_SIZE = 10;
-    const renderedTables = [];
+    if (!window._backupSummaryTablePages) window._backupSummaryTablePages = {};
+    if (!window._backupSummaryTablePages['ALL']) window._backupSummaryTablePages['ALL'] = 1;
+    const currentPage = window._backupSummaryTablePages['ALL'] || 1;
+    const totalPages = Math.ceil(sortedJobs.length / PAGE_SIZE);
+    const paginatedItems = sortedJobs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-    sortedStatusKeys.forEach(status => {
-        const items = groupedByStatus[status];
-        // Cabeçalho da seção
-        const sectionHeader = document.createElement('div');
-        sectionHeader.className = 'font-semibold text-gray-800 mt-4';
-        sectionHeader.textContent = `${status} (${items.length})`;
-        tableContainer.appendChild(sectionHeader);
-
-        // Paginação
-        const currentPage = window._backupSummaryTablePages[status] || 1;
-        const totalPages = Math.ceil(items.length / PAGE_SIZE);
-        const paginatedItems = items.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-        // Tabela para os itens
-        const table = document.createElement('table');
-        table.className = 'min-w-full divide-y divide-gray-200 mb-4';
-        table.innerHTML = `
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dispositivo</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Hora</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Size</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duração</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                ${paginatedItems.map(item => {
-                    // Buscar status e data da tabela emails (email relacionado)
-                    let email = null;
-                    if (item.email_id && Array.isArray(filteredEmails)) {
-                        email = filteredEmails.find(e => e.id === item.email_id);
-                    }
-                    // Data do e-mail
-                    let data = email && email.date ? formatSimpleDate(email.date) : '-';
-                    // Status do e-mail
-                    let statusEmail = email && typeof email.is_processed !== 'undefined'
-                        ? (email.is_processed ? 'Sucesso' : 'Pendente')
-                        : '-';
-                    // Se summary_error maior do que zero, força status para "Erro"
-                    if (item.summary_error > 0) {
-                        statusEmail = 'Falha';
-                    }
-                    // Hora (mantém lógica anterior)
-                    let hora = '-';
-                    if (item.data) {
-                        hora = item.data;
-                    } else if (item.start_time) {
-                        const parts = item.start_time.split(' ');
-                        hora = parts[0] || '-';
-                    } else if (item.created_at) {
-                        hora = item.created_at.split(' ')[0];
-                    }
-                    // Total Size e Duração (padronizado)
-                    const totalSize = item.total_size || '-';
-                    const duracao = item.duration || '-';
-                    // Torna o nome do dispositivo clicável
-                    return `
-                    <tr>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                            <a href="#" class="text-blue-600 hover:underline" onclick="showBackupJobDetail(${item.email_id}, '${(item.job_name || item.host || '').replace(/'/g, "\\'")}'); return false;">
-                                ${item.job_name || item.host || 'N/A'}
-                            </a>
-                        </td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${data}</td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${hora}</td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                            <span class="px-2 py-1 text-xs rounded-full ${
-                                statusEmail === 'Sucesso' ? 'bg-green-100 text-green-800' :
-                                statusEmail === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
-                                statusEmail === 'Aviso' ? 'bg-yellow-100 text-yellow-800' :
-                                statusEmail === 'Falha' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                            }">
-                                ${statusEmail}
-                            </span>
-                        </td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${totalSize}</td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${duracao}</td>
-                    </tr>
-                    `;
-                }).join('')}
-            </tbody>
-        `;
-        tableContainer.appendChild(table);
-        renderedTables.push(table);
-
-        // Controles de paginação
-        if (items.length > PAGE_SIZE) {
-            const pagination = createPaginationControls(
-                items.length,
-                currentPage,
-                PAGE_SIZE,
-                (newPage) => {
-                    window._backupSummaryTablePages[status] = newPage;
-                    updateBackupSummaryTable(lastBackupSummaryJobs);
+    // Tabela única
+    const table = document.createElement('table');
+    table.className = 'min-w-full mb-4 rounded-xl overflow-hidden shadow-sm bg-white border border-gray-100';
+    table.innerHTML = `
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Dispositivo</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Data</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Hora</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Total Size</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Duração</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${paginatedItems.map((item, idx) => {
+                // Buscar status e data da tabela emails (email relacionado)
+                let email = null;
+                if (item.email_id && Array.isArray(filteredEmails)) {
+                    email = filteredEmails.find(e => e.id === item.email_id);
                 }
-            );
-            tableContainer.appendChild(pagination);
-        }
-    });
+                // Data do e-mail
+                let data = email && email.date ? formatSimpleDate(email.date) : '-';
+                // Status do e-mail
+                let statusEmail = email && typeof email.is_processed !== 'undefined'
+                    ? (email.is_processed ? 'Sucesso' : 'Pendente')
+                    : '-';
+                // Se summary_error maior do que zero, força status para "Erro"
+                if (item.summary_error > 0) {
+                    statusEmail = 'Falha';
+                } else if (item.summary_warning > 0 || (item.status && (item.status === 'Warning' || item.status === 'warning'))) {
+                    statusEmail = 'Aviso';
+                } else if (item.status && (item.status === 'Success' || item.status === 'success')) {
+                    statusEmail = 'Sucesso';
+                }
+                // Hora (mantém lógica anterior)
+                let hora = '-';
+                if (item.data) {
+                    hora = item.data;
+                } else if (item.start_time) {
+                    const parts = item.start_time.split(' ');
+                    hora = parts[0] || '-';
+                } else if (item.created_at) {
+                    hora = item.created_at.split(' ')[0];
+                }
+                // Total Size e Duração (padronizado)
+                const totalSize = item.total_size || '-';
+                const duracao = item.duration || '-';
+                // Alterna cor de fundo das linhas
+                const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                // Badge de status mais moderno
+                let badgeClass = '';
+                if (statusEmail === 'Sucesso') badgeClass = 'bg-green-100 text-green-700 border border-green-200';
+                else if (statusEmail === 'Aviso') badgeClass = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+                else if (statusEmail === 'Falha') badgeClass = 'bg-red-100 text-red-700 border border-red-200';
+                else if (statusEmail === 'Pendente') badgeClass = 'bg-gray-100 text-gray-700 border border-gray-200';
+                else badgeClass = 'bg-gray-50 text-gray-500 border border-gray-100';
+                return `
+                <tr class="${rowBg} transition hover:bg-blue-100/60">
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <a href="#" class="text-blue-600 hover:underline" onclick="showBackupJobDetail(${item.email_id}, '${(item.job_name || item.host || '').replace(/'/g, "\\'")}'); return false;">
+                            ${item.job_name || item.host || 'N/A'}
+                        </a>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${data}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${hora}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm">
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${badgeClass} shadow-sm">
+                            ${statusEmail}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${totalSize}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${duracao}</td>
+                </tr>
+                `;
+            }).join('')}
+        </tbody>
+    `;
+    tableContainer.appendChild(table);
 
-    // Adiciona botão de exportação para PDF após as tabelas
-    addExportPdfButton(tableContainer, renderedTables);
+    // Controles de paginação
+    if (sortedJobs.length > PAGE_SIZE) {
+        const pagination = createPaginationControls(
+            sortedJobs.length,
+            currentPage,
+            PAGE_SIZE,
+            (newPage) => {
+                window._backupSummaryTablePages['ALL'] = newPage;
+                updateBackupSummaryTable(lastBackupSummaryJobs);
+            }
+        );
+        tableContainer.appendChild(pagination);
+    }
+
+    // Adiciona botão de exportação para PDF após a tabela única
+    addExportPdfButton(tableContainer, [table]);
 }
-
 // Handler do filtro
 function onBackupSummaryFilterChange() {
     const search = document.getElementById('backup-summary-search')?.value || '';
@@ -630,108 +667,175 @@ function onBackupSummaryFilterChange() {
         return;
     }
 
-    // Agrupar por status (mantém agrupamento)
-    const groupedByStatus = filtered.reduce((acc, item) => {
-        const status = item.status ? (item.status.charAt(0).toUpperCase() + item.status.slice(1).toLowerCase()) : 'Total de dispositivos';
-        if (!acc[status]) {
-            acc[status] = [];
+    // Todos os itens em uma única tabela, ordenados por data decrescente
+    const sortedItems = [...filtered].sort((a, b) => {
+        let aDate = '', bDate = '';
+        if (a.email_id && Array.isArray(filteredEmails)) {
+            const emailA = filteredEmails.find(e => e.id === a.email_id);
+            aDate = emailA && emailA.date ? emailA.date : '';
         }
-        acc[status].push(item);
-        return acc;
-    }, {});
-
-    const sortedStatusKeys = Object.keys(groupedByStatus).sort((a, b) => {
-        const order = ['Success', 'Warning', 'Error'];
-        return order.indexOf(a) - order.indexOf(b);
+        if (b.email_id && Array.isArray(filteredEmails)) {
+            const emailB = filteredEmails.find(e => e.id === b.email_id);
+            bDate = emailB && emailB.date ? emailB.date : '';
+        }
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        return bDate.localeCompare(aDate);
     });
 
-    const renderedTables = [];
-    sortedStatusKeys.forEach(status => {
-        const items = groupedByStatus[status];
-        // Cabeçalho da seção
-        const sectionHeader = document.createElement('div');
-        sectionHeader.className = 'font-semibold text-gray-800 mt-4';
-        sectionHeader.textContent = `${status} (${items.length})`;
-        tableContainer.appendChild(sectionHeader);
+    // Paginação
+    const PAGE_SIZE = 10;
+    if (!window._backupSummaryTablePages) window._backupSummaryTablePages = {};
+    if (!window._backupSummaryTablePages['FILTERED']) window._backupSummaryTablePages['FILTERED'] = 1;
+    const currentPage = window._backupSummaryTablePages['FILTERED'] || 1;
+    const totalPages = Math.ceil(sortedItems.length / PAGE_SIZE);
+    const paginatedItems = sortedItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-        // Tabela para os itens
-        const table = document.createElement('table');
-        table.className = 'min-w-full divide-y divide-gray-200 mb-4';
-        table.innerHTML = `
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dispositivo</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Hora</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Size</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duração</th>
+    // Tabela única para todos os itens filtrados
+    const table = document.createElement('table');
+    table.className = 'min-w-full mb-4 rounded-xl overflow-hidden shadow-sm bg-white border border-gray-100';
+    table.innerHTML = `
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Dispositivo</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Data</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Hora</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Total Size</th>
+                <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-100">Duração</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${paginatedItems.map((item, idx) => {
+                // Buscar status e data da tabela emails (email relacionado)
+                let email = null;
+                if (item.email_id && Array.isArray(filteredEmails)) {
+                    email = filteredEmails.find(e => e.id === item.email_id);
+                }
+                // Data do e-mail
+                let data = email && email.date ? formatSimpleDate(email.date) : '-';
+                // Status do e-mail
+                let statusEmail = email && typeof email.is_processed !== 'undefined'
+                    ? (email.is_processed ? 'Sucesso' : 'Pendente')
+                    : '-';
+                // Se summary_error maior do que zero, força status para "Erro"
+                if (item.summary_error > 0) {
+                    statusEmail = 'Falha';
+                } else if (item.summary_warning > 0 || (item.status && (item.status === 'Warning' || item.status === 'warning'))) {
+                    statusEmail = 'Aviso';
+                } else if (item.status && (item.status === 'Success' || item.status === 'success')) {
+                    statusEmail = 'Sucesso';
+                }
+                // Hora (mantém lógica anterior)
+                let hora = '-';
+                if (item.data) {
+                    hora = item.data;
+                } else if (item.start_time) {
+                    const parts = item.start_time.split(' ');
+                    hora = parts[0] || '-';
+                } else if (item.created_at) {
+                    hora = item.created_at.split(' ')[0];
+                }
+                // Total Size e Duração (padronizado)
+                const totalSize = item.total_size || '-';
+                const duracao = item.duration || '-';
+                // Alterna cor de fundo das linhas
+                const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                // Badge de status mais moderno
+                let badgeClass = '';
+                if (statusEmail === 'Sucesso') badgeClass = 'bg-green-100 text-green-700 border border-green-200';
+                else if (statusEmail === 'Aviso') badgeClass = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+                else if (statusEmail === 'Falha') badgeClass = 'bg-red-100 text-red-700 border border-red-200';
+                else if (statusEmail === 'Pendente') badgeClass = 'bg-gray-100 text-gray-700 border border-gray-200';
+                else badgeClass = 'bg-gray-50 text-gray-500 border border-gray-100';
+                return `
+                <tr class="${rowBg} transition hover:bg-blue-100/60">
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        <a href="#" class="text-blue-600 hover:underline" onclick="showBackupJobDetail(${item.email_id}, '${(item.job_name || item.host || '').replace(/'/g, "\\'")}'); return false;">
+                            ${item.job_name || item.host || 'N/A'}
+                        </a>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${data}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${hora}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm">
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${badgeClass} shadow-sm">
+                            ${statusEmail}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${totalSize}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${duracao}</td>
                 </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                ${items.map(item => {
-                    // Buscar status e data da tabela emails (email relacionado)
-                    let email = null;
-                    if (item.email_id && Array.isArray(filteredEmails)) {
-                        email = filteredEmails.find(e => e.id === item.email_id);
-                    }
-                    // Data do e-mail
-                    let data = email && email.date ? formatSimpleDate(email.date) : '-';
-                    // Status do e-mail
-                    let statusEmail = email && typeof email.is_processed !== 'undefined'
-                        ? (email.is_processed ? 'Sucesso' : 'Pendente')
-                        : '-';
-                    // Se summary_error maior do que zero, força status para "Erro"
-                    if (item.summary_error > 0) {
-                        statusEmail = 'Falha';
-                    }
-                    // Hora (mantém lógica anterior)
-                    let hora = '-';
-                    if (item.data) {
-                        hora = item.data;
-                    } else if (item.start_time) {
-                        const parts = item.start_time.split(' ');
-                        hora = parts[0] || '-';
-                    } else if (item.created_at) {
-                        hora = item.created_at.split(' ')[0];
-                    }
-                    // Total Size e Duração (padronizado)
-                    const totalSize = item.total_size || '-';
-                    const duracao = item.duration || '-';
-                    // Torna o nome do dispositivo clicável
-                    return `
-                    <tr>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                            <a href="#" class="text-blue-600 hover:underline" onclick="showBackupJobDetail(${item.email_id}, '${(item.job_name || item.host || '').replace(/'/g, "\\'")}'); return false;">
-                                ${item.job_name || item.host || 'N/A'}
-                            </a>
-                        </td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${data}</td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${hora}</td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
-                            <span class="px-2 py-1 text-xs rounded-full ${
-                                statusEmail === 'Sucesso' ? 'bg-green-100 text-green-800' :
-                                statusEmail === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
-                                statusEmail === 'Aviso' ? 'bg-yellow-100 text-yellow-800' :
-                                statusEmail === 'Falha' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                            }">
-                                ${statusEmail}
-                            </span>
-                        </td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${totalSize}</td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${duracao}</td>
-                    </tr>
-                    `;
-                }).join('')}
-            </tbody>
-        `;
-        tableContainer.appendChild(table);
-        renderedTables.push(table);
-    });
+                `;
+            }).join('')}
+        </tbody>
+    `;
+    tableContainer.appendChild(table);
 
-    // Adiciona botão de exportação para PDF após as tabelas filtradas
-    addExportPdfButton(tableContainer, renderedTables);
+    // Controles de paginação
+    if (sortedItems.length > PAGE_SIZE) {
+        const pagination = createPaginationControls(
+            sortedItems.length,
+            currentPage,
+            PAGE_SIZE,
+            (newPage) => {
+                window._backupSummaryTablePages['FILTERED'] = newPage;
+                onBackupSummaryFilterChange();
+            }
+        );
+        tableContainer.appendChild(pagination);
+    }
+
+    // Adiciona botão de exportação para PDF após a tabela única
+    addExportPdfButton(tableContainer, [table]);
+}
+
+// Adiciona eventos de clique nos cards de resumo para filtrar
+function attachSummaryCardFilters() {
+    // Card Total: limpa filtro de status
+    if (summaryTotal && summaryTotal.parentElement) {
+        summaryTotal.parentElement.style.cursor = 'pointer';
+        summaryTotal.parentElement.onclick = () => {
+            const statusSelect = document.getElementById('backup-summary-status');
+            if (statusSelect) {
+                statusSelect.value = '';
+                onBackupSummaryFilterChange();
+            }
+        };
+    }
+    // Card Sucesso
+    if (summarySuccess && summarySuccess.parentElement) {
+        summarySuccess.parentElement.style.cursor = 'pointer';
+        summarySuccess.parentElement.onclick = () => {
+            const statusSelect = document.getElementById('backup-summary-status');
+            if (statusSelect) {
+                statusSelect.value = 'success';
+                onBackupSummaryFilterChange();
+            }
+        };
+    }
+    // Card Aviso
+    if (summaryWarning && summaryWarning.parentElement) {
+        summaryWarning.parentElement.style.cursor = 'pointer';
+        summaryWarning.parentElement.onclick = () => {
+            const statusSelect = document.getElementById('backup-summary-status');
+            if (statusSelect) {
+                statusSelect.value = 'warning';
+                onBackupSummaryFilterChange();
+            }
+        };
+    }
+    // Card Falha
+    if (summaryError && summaryError.parentElement) {
+        summaryError.parentElement.style.cursor = 'pointer';
+        summaryError.parentElement.onclick = () => {
+            const statusSelect = document.getElementById('backup-summary-status');
+            if (statusSelect) {
+                statusSelect.value = 'error';
+                onBackupSummaryFilterChange();
+            }
+        };
+    }
 }
 
 // ==================== Funções de Modais ====================
@@ -751,94 +855,197 @@ async function showBackupJobDetail(emailId, jobName) {
         }
     }, 0);
     try {
-        const jobsResp = await fetch(`/api/backup-jobs/by-email/${emailId}`);
+        // Busca jobs tradicionais e config_backups
+        const [jobsResp, configResp] = await Promise.all([
+            fetch(`/api/backup-jobs/by-email/${emailId}`),
+            fetch(`/api/config-backups/by-email/${emailId}`)
+        ]);
         const jobs = jobsResp.ok ? await jobsResp.json() : [];
+        const configs = configResp.ok ? await configResp.json() : [];
         // Busca pelo nome normalizado, mas prioriza id se possível
         let job = null;
+        let config = null;
         // Se jobName for id numérico, tente buscar por id
         if (!isNaN(Number(jobName))) {
             job = jobs.find(j => String(j.id) === String(jobName));
+            config = configs.find(c => String(c.id) === String(jobName));
         }
         // Se não achou por id, busca por nome normalizado
-        if (!job) {
+        if (!job && !config) {
             job = jobs.find(j => ((j.job_name || j.host || '').trim().toLowerCase() === (jobName || '').trim().toLowerCase()));
+            config = configs.find(c => (`Configuração: ${c.server}`.toLowerCase() === (jobName || '').trim().toLowerCase()));
         }
-        // Removido: busca e exibição das VMs do Job
-        if (!job) {
-            backupJobDetailContent.innerHTML = `<div class="p-4 text-center text-gray-500">Job não encontrado.</div>`;
-            return;
-        }
-        backupJobDetailContent.innerHTML = `
-            <h4 class="text-lg font-semibold mb-2">Detalhes do Job: ${job.job_name || job.host}</h4>
-            <div class="bg-gray-50 p-4 rounded-lg mb-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-sm text-gray-500">Nome do Job</p>
-                        <p class="font-medium">${job.job_name || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Usuário que Criou</p>
-                        <p class="font-medium">${job.created_by || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Data de Criação</p>
-                        <p class="font-medium">${job.created_at || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">VMs Processadas</p>
-                        <p class="font-medium">${job.processed_vms || '-'} de ${job.processed_vms_total || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Backups com Sucesso</p>
-                        <p class="font-medium">${job.summary_success || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Backups com Aviso</p>
-                        <p class="font-medium">${job.summary_warning || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Backups com Falha</p>
-                        <p class="font-medium">${job.summary_error || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Início do Job</p>
-                        <p class="font-medium">${job.start_time || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Fim do Job</p>
-                        <p class="font-medium">${job.end_time || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Duração Total</p>
-                        <p class="font-medium">${job.duration || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Tamanho Total do Backup</p>
-                        <p class="font-medium">${job.total_size || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Tamanho do Backup Gerado</p>
-                        <p class="font-medium">${job.backup_size || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Dados Lidos</p>
-                        <p class="font-medium">${job.data_read || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Deduplicação</p>
-                        <p class="font-medium">${job.dedupe || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Dados Transferidos</p>
-                        <p class="font-medium">${job.transferred || '-'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-500">Compressão</p>
-                        <p class="font-medium">${job.compression || '-'}</p>
+        if (job) {
+            // ...exibe detalhes do job tradicional (como já faz)...
+            backupJobDetailContent.innerHTML = `
+                <h4 class="text-lg font-semibold mb-2">Detalhes do Job: ${job.job_name || job.host}</h4>
+                <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Nome do Job</p>
+                            <p class="font-medium">${job.job_name || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Usuário que Criou</p>
+                            <p class="font-medium">${job.created_by || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Data de Criação</p>
+                            <p class="font-medium">${job.created_at || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">VMs Processadas</p>
+                            <p class="font-medium">${job.processed_vms || '-'} de ${job.processed_vms_total || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Backups com Sucesso</p>
+                            <p class="font-medium">${job.summary_success || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Backups com Aviso</p>
+                            <p class="font-medium">${job.summary_warning || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Backups com Falha</p>
+                            <p class="font-medium">${job.summary_error || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Início do Job</p>
+                            <p class="font-medium">${job.start_time || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Fim do Job</p>
+                            <p class="font-medium">${job.end_time || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Duração Total</p>
+                            <p class="font-medium">${job.duration || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Tamanho Total do Backup</p>
+                            <p class="font-medium">${job.total_size || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Tamanho do Backup Gerado</p>
+                            <p class="font-medium">${job.backup_size || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Dados Lidos</p>
+                            <p class="font-medium">${job.data_read || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Deduplicação</p>
+                            <p class="font-medium">${job.dedupe || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Dados Transferidos</p>
+                            <p class="font-medium">${job.transferred || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Compressão</p>
+                            <p class="font-medium">${job.compression || '-'}</p>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+            // ...pode adicionar detalhes de VMs se desejar...
+            return;
+        }
+        if (config) {
+            // Exibe detalhes do backup de configuração
+            // Busca catálogos
+            let catalogs = [];
+            try {
+                const resp = await fetch(`/api/config-catalogs/by-config/${config.id}`);
+                catalogs = resp.ok ? await resp.json() : [];
+            } catch {}
+            backupJobDetailContent.innerHTML = `
+                <h4 class="text-lg font-semibold mb-2">Backup de Configuração: ${config.server}</h4>
+                <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Servidor</p>
+                            <p class="font-medium">${config.server || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Repositório</p>
+                            <p class="font-medium">${config.repository || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Status</p>
+                            <p class="font-medium">${config.status || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Catálogos Processados</p>
+                            <p class="font-medium">${config.catalogs_processed || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Data do Backup</p>
+                            <p class="font-medium">${config.backup_date || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Início</p>
+                            <p class="font-medium">${config.start_time || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Fim</p>
+                            <p class="font-medium">${config.end_time || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Data Size</p>
+                            <p class="font-medium">${config.data_size || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Backup Size</p>
+                            <p class="font-medium">${config.backup_size || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Duração</p>
+                            <p class="font-medium">${config.duration || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Compressão</p>
+                            <p class="font-medium">${config.compression || '-'}</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <p class="text-sm text-gray-500">Avisos</p>
+                            <p class="font-medium">${config.warnings || '-'}</p>
+                        </div>
+                    </div>
+                </div>
+                <h4 class="text-lg font-semibold mb-2">Catálogos</h4>
+                ${catalogs.length > 0 ? `
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Catálogo</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Itens</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tamanho</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Compactado</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${catalogs.map(cat => `
+                            <tr>
+                                <td class="px-4 py-2">${cat.catalog_name}</td>
+                                <td class="px-4 py-2">${cat.items}</td>
+                                <td class="px-4 py-2">${cat.size}</td>
+                                <td class="px-4 py-2">${cat.packed}</td>
+                            </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ` : `
+                <div class="bg-gray-50 p-4 rounded-lg text-center text-gray-500">
+                    Nenhum catálogo encontrado para este backup de configuração
+                </div>
+                `}
+            `;
+            return;
+        }
+        backupJobDetailContent.innerHTML = `<div class="p-4 text-center text-gray-500">Job não encontrado.</div>`;
     } catch (error) {
         backupJobDetailContent.innerHTML = `
             <div class="bg-red-50 border-l-4 border-red-400 p-4">
@@ -1090,5 +1297,8 @@ window.showBackupJobDetail = showBackupJobDetail;
 document.addEventListener('DOMContentLoaded', () => {
     fetchEmails();
     // Garante que o filtro será renderizado ao carregar a página
-    setTimeout(() => renderBackupSummaryFilter(), 500);
+    setTimeout(() => {
+        renderBackupSummaryFilter();
+        attachSummaryCardFilters();
+    }, 500);
 });

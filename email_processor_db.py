@@ -100,6 +100,38 @@ class EmailProcessor:
                     FOREIGN KEY (job_id) REFERENCES backup_jobs (id)
                 )
             ''')
+            # Nova tabela para backups de configuração
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS config_backups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email_id INTEGER,
+                    server TEXT,
+                    repository TEXT,
+                    status TEXT,
+                    catalogs_processed INTEGER,
+                    backup_date TEXT,
+                    start_time TEXT,
+                    end_time TEXT,
+                    data_size TEXT,
+                    backup_size TEXT,
+                    duration TEXT,
+                    compression TEXT,
+                    warnings TEXT,
+                    FOREIGN KEY (email_id) REFERENCES emails (id)
+                )
+            ''')
+            # Nova tabela para detalhes dos catálogos de configuração
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS config_catalogs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    config_backup_id INTEGER,
+                    catalog_name TEXT,
+                    items INTEGER,
+                    size TEXT,
+                    packed TEXT,
+                    FOREIGN KEY (config_backup_id) REFERENCES config_backups (id)
+                )
+            ''')
             conn.commit()
     
     def fetch_and_process(self):
@@ -108,13 +140,17 @@ class EmailProcessor:
         if not emails:
             print("ℹ️ Nenhum e-mail novo encontrado.")
             return
-        
+
         print(f"\n🔎 {len(emails)} e-mails encontrados. Processando...")
-        
+
         for i, email_data in enumerate(emails, 1):
             email_id = self._store_email_in_db(email_data)
             if email_id:
-                self._process_email_content(email_data, email_id, i)
+                # Detecta se é um e-mail de backup de configuração
+                if self._is_config_backup_email(email_data["body"]):
+                    self._process_config_backup_email(email_data, email_id, i)
+                else:
+                    self._process_email_content(email_data, email_id, i)
     
     def _fetch_emails(self) -> List[Dict]:
         """Busca e-mails não processados na caixa de entrada"""
@@ -438,6 +474,128 @@ class EmailProcessor:
                     vm.get('transferred'),
                     vm.get('duration'),
                     vm.get('details')
+                ))
+            conn.commit()
+
+    def _is_config_backup_email(self, body: str) -> bool:
+        """Detecta se o corpo do e-mail é de backup de configuração"""
+        return bool(re.search(r'^Configuration Backup for ', body, re.MULTILINE))
+
+    def _process_config_backup_email(self, email_data: Dict, email_id: int, index: int):
+        """Processa e armazena e-mail de backup de configuração"""
+        config_info = self._extract_config_backup_info(email_data["body"])
+        if config_info:
+            config_id = self._store_config_backup(email_id, config_info)
+            if config_info.get("catalogs"):
+                self._store_config_catalogs(config_id, config_info["catalogs"])
+        self._mark_as_processed(email_id)
+        print(f"✅ E-mail {index} (config backup) processado.")
+
+    def _extract_config_backup_info(self, body: str) -> dict:
+        """Extrai informações do backup de configuração do corpo do e-mail"""
+        info = {}
+        # Cabeçalho
+        m = re.search(r'^Configuration Backup for ([^\n]+)', body, re.MULTILINE)
+        if m:
+            info["server"] = m.group(1).strip()
+        m = re.search(r'^To:\s*(.+)', body, re.MULTILINE)
+        if m:
+            info["repository"] = m.group(1).strip()
+        m = re.search(r'^(Success|Warning|Error)', body, re.MULTILINE)
+        if m:
+            info["status"] = m.group(1)
+        m = re.search(r'^(\d+) catalogs processed', body, re.MULTILINE)
+        if m:
+            info["catalogs_processed"] = int(m.group(1))
+        # Datas e horários
+        m = re.search(r'^(\d{1,2} de .+? \d{4} \d{2}:\d{2}:\d{2})', body, re.MULTILINE)
+        if m:
+            info["backup_date"] = m.group(1)
+        m = re.search(r'Start time (\d{2}:\d{2}:\d{2})', body)
+        if m:
+            info["start_time"] = m.group(1)
+        m = re.search(r'End time (\d{2}:\d{2}:\d{2})', body)
+        if m:
+            info["end_time"] = m.group(1)
+        m = re.search(r'Data size ([\d\.,A-Za-z ]+)', body)
+        if m:
+            info["data_size"] = m.group(1).strip()
+        m = re.search(r'Backup size ([\d\.,A-Za-z ]+)', body)
+        if m:
+            info["backup_size"] = m.group(1).strip()
+        m = re.search(r'Duration ([\d:]+)', body)
+        if m:
+            info["duration"] = m.group(1)
+        m = re.search(r'Compression ([\d\.,x]+)', body)
+        if m:
+            info["compression"] = m.group(1)
+        # Warnings
+        warnings = []
+        for warn in re.findall(r'Warning[^\n]*\n(.+?)(?=\n\d{2}/\d{2}/\d{4}|\nEnd time|\nDuration|\nCompression|$)', body, re.DOTALL):
+            warnings.append(warn.strip().replace('\n', ' '))
+        info["warnings"] = " | ".join(warnings) if warnings else None
+        # Catálogos
+        catalogs = []
+        m = re.search(r'Details\s*Catalog Items Size Packed\n(.+)', body, re.DOTALL)
+        if m:
+            lines = m.group(1).strip().split('\n')
+            for line in lines:
+                parts = re.split(r'\s{2,}|\t', line.strip())
+                if len(parts) < 4:
+                    parts = line.strip().split()
+                if len(parts) >= 4:
+                    catalogs.append({
+                        "catalog_name": parts[0] + (f" {parts[1]}" if not parts[1].replace('.', '', 1).isdigit() else ""),
+                        "items": int(parts[1]) if parts[1].replace('.', '', 1).isdigit() else int(parts[2]),
+                        "size": parts[2] if parts[1].replace('.', '', 1).isdigit() else parts[3],
+                        "packed": parts[3] if parts[1].replace('.', '', 1).isdigit() else parts[4]
+                    })
+        info["catalogs"] = catalogs
+        return info if info.get("server") else None
+
+    def _store_config_backup(self, email_id: int, info: dict) -> int:
+        """Armazena informações do backup de configuração"""
+        with sqlite3.connect(self.db_name) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO config_backups (
+                    email_id, server, repository, status, catalogs_processed, backup_date,
+                    start_time, end_time, data_size, backup_size, duration, compression, warnings
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                email_id,
+                info.get("server"),
+                info.get("repository"),
+                info.get("status"),
+                info.get("catalogs_processed"),
+                info.get("backup_date"),
+                info.get("start_time"),
+                info.get("end_time"),
+                info.get("data_size"),
+                info.get("backup_size"),
+                info.get("duration"),
+                info.get("compression"),
+                info.get("warnings")
+            ))
+            config_id = cursor.lastrowid
+            conn.commit()
+            return config_id
+
+    def _store_config_catalogs(self, config_id: int, catalogs: list):
+        """Armazena detalhes dos catálogos de configuração"""
+        with sqlite3.connect(self.db_name) as conn:
+            cursor = conn.cursor()
+            for cat in catalogs:
+                cursor.execute('''
+                    INSERT INTO config_catalogs (
+                        config_backup_id, catalog_name, items, size, packed
+                    ) VALUES (?, ?, ?, ?, ?)
+                ''', (
+                    config_id,
+                    cat.get("catalog_name"),
+                    cat.get("items"),
+                    cat.get("size"),
+                    cat.get("packed")
                 ))
             conn.commit()
 

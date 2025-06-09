@@ -28,18 +28,24 @@
             <section id="backup-summary-section" class="bg-white rounded-xl border border-gray-100 p-4 flex-1 flex flex-col shadow-sm min-h-0">
                 
                 <div class="flex flex-wrap gap-2 mb-4">
-                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-green-100 bg-green-50">
-                        <i class="fa-regular fa-circle-check text-green-500"></i>
+                    <!-- Card Total -->
+                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-blue-100 bg-blue-50 transition-all duration-200 cursor-pointer hover:bg-blue-100 hover:shadow-sm hover:-translate-y-0.5 group">
+                        <i class="fa-solid fa-database text-blue-500 transition-transform duration-200 group-hover:scale-125 group-hover:-rotate-6"></i>
+                        <span id="summary-total" class="font-semibold text-blue-700">0</span>
+                        <span class="text-blue-700 text-xs">Total</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-green-100 bg-green-50 transition-all duration-200 cursor-pointer hover:bg-green-100 hover:shadow-sm hover:-translate-y-0.5 group">
+                        <i class="fa-regular fa-circle-check text-green-500 transition-transform duration-200 group-hover:scale-125 group-hover:-rotate-6"></i>
                         <span id="summary-success" class="font-semibold text-green-700">0</span>
                         <span class="text-green-700 text-xs">Sucesso</span>
                     </div>
-                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-yellow-100 bg-yellow-50">
-                        <i class="fa-regular fa-bell text-yellow-500"></i>
+                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-yellow-100 bg-yellow-50 transition-all duration-200 cursor-pointer hover:bg-yellow-100 hover:shadow-sm hover:-translate-y-0.5 group">
+                        <i class="fa-regular fa-bell text-yellow-500 transition-transform duration-200 group-hover:scale-125 group-hover:-rotate-6"></i>
                         <span id="summary-warning" class="font-semibold text-yellow-700">0</span>
                         <span class="text-yellow-700 text-xs">Aviso</span>
                     </div>
-                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-red-100 bg-red-50">
-                        <i class="fa-regular fa-circle-xmark text-red-500"></i>
+                    <div class="flex items-center gap-2 px-3 py-1 rounded border border-red-100 bg-red-50 transition-all duration-200 cursor-pointer hover:bg-red-100 hover:shadow-sm hover:-translate-y-0.5 group">
+                        <i class="fa-regular fa-circle-xmark text-red-500 transition-transform duration-200 group-hover:scale-125 group-hover:-rotate-6"></i>
                         <span id="summary-error" class="font-semibold text-red-700">0</span>
                         <span class="text-red-700 text-xs">Falha</span>
                     </div>

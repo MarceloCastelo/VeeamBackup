@@ -677,7 +677,7 @@ function updateBackupSummaryTable(backupJobs) {
                     hora = item.created_at.split(' ')[0];
                 }
                 // Total Size e Duração (padronizado)
-                const totalSize = item.total_size || '-';
+                const totalSize = item.backup_size || '-';
                 const duracao = item.duration || '-';
                 // Alterna cor de fundo das linhas
                 const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
@@ -845,7 +845,7 @@ function onBackupSummaryFilterChange() {
                     hora = item.created_at.split(' ')[0];
                 }
                 // Total Size e Duração (padronizado)
-                const totalSize = item.total_size || '-';
+                const totalSize = item.backup_size || '-';
                 const duracao = item.duration || '-';
                 // Alterna cor de fundo das linhas
                 const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';

@@ -315,8 +315,29 @@ class EmailProcessor:
             job['compression'] = m.group(4).strip()
         return job if job.get('job_name') else None
 
+    def _clean_size_field(self, value: str) -> str:
+        """
+        Limpa o campo de tamanho, mantendo apenas o valor numérico e a unidade (B, KB, MB, GB, TB).
+        Exemplo: "0 B Error:" -> "0 B", "5 GB Processing" -> "5 GB"
+        """
+        if not value:
+            return ""
+        m = re.match(r'^\s*([\d\.,]+)\s*([KMGTP]?B)', value.strip(), re.IGNORECASE)
+        if m:
+            num = m.group(1).replace(',', '.')
+            unit = m.group(2).upper()
+            # Normaliza unidade para GB se for "B" sozinho e valor >= 1024^3, mas aqui só limpa
+            return f"{num} {unit}"
+        # fallback: retorna só o primeiro "palavra" se não casar
+        return value.strip().split()[0] + " B"
+
     def _store_job_info(self, email_id: int, job: dict) -> int:
         """Armazena informações do job no banco de dados e retorna o job_id"""
+        # Limpa os campos de tamanho antes de armazenar
+        job['total_size'] = self._clean_size_field(job.get('total_size', ''))
+        job['backup_size'] = self._clean_size_field(job.get('backup_size', ''))
+        job['data_read'] = self._clean_size_field(job.get('data_read', ''))
+        job['transferred'] = self._clean_size_field(job.get('transferred', ''))
         with sqlite3.connect(self.db_name) as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -474,6 +495,9 @@ class EmailProcessor:
 
     def _store_config_backup(self, email_id: int, info: dict) -> int:
         """Armazena informações do backup de configuração"""
+        # Limpa os campos de tamanho antes de armazenar
+        info["data_size"] = self._clean_size_field(info.get("data_size", ""))
+        info["backup_size"] = self._clean_size_field(info.get("backup_size", ""))
         with sqlite3.connect(self.db_name) as conn:
             cursor = conn.cursor()
             cursor.execute('''

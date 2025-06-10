@@ -737,8 +737,17 @@ function onBackupSummaryFilterChange() {
     const tableContainer = document.getElementById('backup-summary-table');
     tableContainer.innerHTML = '';
 
-    // Resetar páginas ao filtrar
-    window._backupSummaryTablePages = {};
+    if (!window._backupSummaryTablePages) window._backupSummaryTablePages = {};
+    // Se algum filtro está ativo, não reseta a página se já existe (só reseta se não existe)
+    if (search || status || dateStart || dateEnd) {
+        if (typeof window._backupSummaryTablePages['FILTERED'] !== 'number') {
+            window._backupSummaryTablePages['FILTERED'] = 1;
+        }
+    } else {
+        if (typeof window._backupSummaryTablePages['ALL'] !== 'number') {
+            window._backupSummaryTablePages['ALL'] = 1;
+        }
+    }
 
     if (!filtered || filtered.length === 0) {
         tableContainer.innerHTML = `

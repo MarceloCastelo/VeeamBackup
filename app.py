@@ -10,16 +10,20 @@ def index():
     return render_template('index.html')
 
 class EmailAPI:
-    def __init__(self, db_name: str = "emails.db"):
+    def __init__(self, db_name: str = "veeam_emails.db"):
         self.db_name = db_name
     
     def _execute_query(self, query: str, params: tuple = (), fetch_all: bool = True) -> List[Dict]:
-        with sqlite3.connect(self.db_name) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            rows = cursor.fetchall() if fetch_all else [cursor.fetchone()]
-            return [dict(row) for row in rows if row]
+        try:
+            with sqlite3.connect(self.db_name) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                rows = cursor.fetchall() if fetch_all else [cursor.fetchone()]
+                return [dict(row) for row in rows if row]
+        except sqlite3.OperationalError as e:
+            # Retorna uma lista vazia e adiciona a mensagem de erro para debug
+            return [{"error": f"Erro operacional no banco de dados: {str(e)}"}]
 
     # 📩 Tabela emails
     def get_all_emails(self) -> List[Dict]:

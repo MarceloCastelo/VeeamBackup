@@ -1,17 +1,25 @@
 from flask import jsonify, request
 from datetime import datetime
 import sqlite3
+import os
 from api.email_api import EmailAPI
 from app import app
 
-email_api = EmailAPI(db_name="veeam_emails.db")
+# Define o caminho absoluto do banco de dados na pasta database
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'database', 'veeam_emails.db')
+db_path = os.path.abspath(db_path)
+email_api = EmailAPI(db_name=db_path)
 
 # 📩 Rotas para tabela emails
 @app.route('/api/emails/', methods=['GET'])
 def get_all_emails():
     emails = email_api.get_all_emails()
-    for email in emails:
+    # Remove duplicatas por id
+    unique_emails = {email['id']: email for email in emails}.values()
+    for email in unique_emails:
         jobs = email_api.get_backup_jobs_by_email(email['id'])
+        # Remove duplicatas de jobs por id
+        jobs = {job['id']: job for job in jobs}.values()
         for job in jobs:
             if 'start_time' in job and job['start_time']:
                 parts = job['start_time'].split(' ')
@@ -20,8 +28,8 @@ def get_all_emails():
             else:
                 job['data'] = ''
                 job['hora'] = ''
-        email['backup_jobs'] = jobs
-    return jsonify(emails)
+        email['backup_jobs'] = list(jobs)
+    return jsonify(list(unique_emails))
 
 @app.route('/api/emails/<int:email_id>', methods=['GET'])
 def get_email_metadata(email_id):
@@ -69,7 +77,9 @@ def get_email_data_by_date():
 @app.route('/api/backup-jobs/', methods=['GET'])
 def get_all_backup_jobs():
     jobs = email_api.get_all_backup_jobs()
-    return jsonify(jobs)
+    # Remove duplicatas por id
+    unique_jobs = {job['id']: job for job in jobs}.values()
+    return jsonify(list(unique_jobs))
 
 @app.route('/api/backup-jobs/errors', methods=['GET'])
 def get_backup_jobs_with_errors():
@@ -79,7 +89,9 @@ def get_backup_jobs_with_errors():
         cursor.execute("SELECT * FROM backup_jobs WHERE summary_error = 1")
         rows = cursor.fetchall()
         jobs = [dict(row) for row in rows]
-    return jsonify(jobs)
+    # Remove duplicatas por id
+    unique_jobs = {job['id']: job for job in jobs}.values()
+    return jsonify(list(unique_jobs))
 
 @app.route('/api/backup-jobs/<int:job_id>', methods=['GET'])
 def get_backup_job(job_id):
@@ -91,7 +103,9 @@ def get_backup_job(job_id):
 @app.route('/api/backup-jobs/by-email/<int:email_id>', methods=['GET'])
 def get_backup_jobs_by_email(email_id):
     jobs = email_api.get_backup_jobs_by_email(email_id)
-    return jsonify(jobs)
+    # Remove duplicatas por id
+    unique_jobs = {job['id']: job for job in jobs}.values()
+    return jsonify(list(unique_jobs))
 
 @app.route('/api/backup-jobs/errors/by-email/<int:email_id>', methods=['GET'])
 def get_backup_jobs_with_errors_by_email(email_id):
@@ -101,24 +115,32 @@ def get_backup_jobs_with_errors_by_email(email_id):
         cursor.execute("SELECT * FROM backup_jobs WHERE summary_error = 1 AND email_id = ?", (email_id,))
         rows = cursor.fetchall()
         jobs = [dict(row) for row in rows]
-    return jsonify(jobs)
+    # Remove duplicatas por id
+    unique_jobs = {job['id']: job for job in jobs}.values()
+    return jsonify(list(unique_jobs))
 
 # 🖥️ Rotas para backup_vms
 @app.route('/api/backup-vms/', methods=['GET'])
 def get_all_vms():
     vms = email_api.get_all_vms()
-    return jsonify(vms)
+    # Remove duplicatas por id
+    unique_vms = {vm['id']: vm for vm in vms}.values()
+    return jsonify(list(unique_vms))
 
 @app.route('/api/backup-vms/by-job/<int:job_id>', methods=['GET'])
 def get_vms_by_job(job_id):
     vms = email_api.get_vms_by_job(job_id)
-    return jsonify(vms)
+    # Remove duplicatas por id
+    unique_vms = {vm['id']: vm for vm in vms}.values()
+    return jsonify(list(unique_vms))
 
 # 🔧 Rotas para config_backups
 @app.route('/api/config-backups/', methods=['GET'])
 def get_all_config_backups():
     backups = email_api.get_all_config_backups()
-    return jsonify(backups)
+    # Remove duplicatas por id
+    unique_backups = {b['id']: b for b in backups}.values()
+    return jsonify(list(unique_backups))
 
 @app.route('/api/config-backups/<int:config_id>', methods=['GET'])
 def get_config_backup(config_id):
@@ -130,15 +152,21 @@ def get_config_backup(config_id):
 @app.route('/api/config-backups/by-email/<int:email_id>', methods=['GET'])
 def get_config_backups_by_email(email_id):
     backups = email_api.get_config_backups_by_email(email_id)
-    return jsonify(backups)
+    # Remove duplicatas por id
+    unique_backups = {b['id']: b for b in backups}.values()
+    return jsonify(list(unique_backups))
 
 # 🔧 Rotas para config_catalogs
 @app.route('/api/config-catalogs/', methods=['GET'])
 def get_all_config_catalogs():
     catalogs = email_api.get_all_config_catalogs()
-    return jsonify(catalogs)
+    # Remove duplicatas por id
+    unique_catalogs = {c['id']: c for c in catalogs}.values()
+    return jsonify(list(unique_catalogs))
 
 @app.route('/api/config-catalogs/by-config/<int:config_id>', methods=['GET'])
 def get_catalogs_by_config(config_id):
     catalogs = email_api.get_catalogs_by_config(config_id)
-    return jsonify(catalogs)
+    # Remove duplicatas por id
+    unique_catalogs = {c['id']: c for c in catalogs}.values()
+    return jsonify(list(unique_catalogs))

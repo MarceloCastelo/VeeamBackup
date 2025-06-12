@@ -1,6 +1,9 @@
 from flask import Flask, render_template
 import threading
 import time
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -16,9 +19,9 @@ from utils.email_processor import EmailProcessor
 
 def email_checker():
     processor = EmailProcessor(
-        email="veeam.adtsa@adtsa.com.br",
-        password="adt@curado1932",
-        target_sender="veeam.adtsa@gmail.com"
+        email=os.environ.get("EMAIL_USER"),
+        password=os.environ.get("EMAIL_PASSWORD"),
+        target_sender=os.environ.get("EMAIL_TARGET_SENDER")
     )
     while True:
         processor.fetch_and_process()
